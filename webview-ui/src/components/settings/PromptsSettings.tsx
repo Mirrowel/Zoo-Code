@@ -24,6 +24,8 @@ import CommitMessagePromptSettings from "./CommitMessagePromptSettings"
 interface PromptsSettingsProps {
 	customSupportPrompts: Record<string, string | undefined>
 	setCustomSupportPrompts: (prompts: Record<string, string | undefined>) => void
+	commitMessageApiConfigId?: string
+	setCommitMessageApiConfigId?: (value: string) => void
 	includeTaskHistoryInEnhance?: boolean
 	setIncludeTaskHistoryInEnhance?: (value: boolean) => void
 }
@@ -31,6 +33,8 @@ interface PromptsSettingsProps {
 const PromptsSettings = ({
 	customSupportPrompts,
 	setCustomSupportPrompts,
+	commitMessageApiConfigId,
+	setCommitMessageApiConfigId,
 	includeTaskHistoryInEnhance: propsIncludeTaskHistoryInEnhance,
 	setIncludeTaskHistoryInEnhance: propsSetIncludeTaskHistoryInEnhance,
 }: PromptsSettingsProps) => {
@@ -246,7 +250,13 @@ const PromptsSettings = ({
 						</div>
 					)}
 
-					{activeSupportOption === "COMMIT_MESSAGE" && <CommitMessagePromptSettings />}
+					{activeSupportOption === "COMMIT_MESSAGE" && (
+						<CommitMessagePromptSettings
+							listApiConfigMeta={listApiConfigMeta || []}
+							commitMessageApiConfigId={commitMessageApiConfigId}
+							setCommitMessageApiConfigId={setCommitMessageApiConfigId ?? (() => {})}
+						/>
+					)}
 				</div>
 			</Section>
 		</div>

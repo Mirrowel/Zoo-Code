@@ -1,12 +1,19 @@
 import React from "react"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
-import { useExtensionState } from "@src/context/ExtensionStateContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@src/components/ui"
-import { vscode } from "@src/utils/vscode"
 
-const CommitMessagePromptSettings = () => {
+interface CommitMessagePromptSettingsProps {
+	listApiConfigMeta: Array<{ id: string; name: string }>
+	commitMessageApiConfigId?: string
+	setCommitMessageApiConfigId: (value: string) => void
+}
+
+const CommitMessagePromptSettings = ({
+	listApiConfigMeta,
+	commitMessageApiConfigId,
+	setCommitMessageApiConfigId,
+}: CommitMessagePromptSettingsProps) => {
 	const { t } = useAppTranslation()
-	const { listApiConfigMeta, commitMessageApiConfigId, setCommitMessageApiConfigId } = useExtensionState()
 
 	return (
 		<div className="mt-4 flex flex-col gap-3 pl-3 border-l-2 border-vscode-button-background">
@@ -16,10 +23,6 @@ const CommitMessagePromptSettings = () => {
 					value={commitMessageApiConfigId || "-"}
 					onValueChange={(value) => {
 						setCommitMessageApiConfigId(value === "-" ? "" : value)
-						vscode.postMessage({
-							type: "commitMessageApiConfigId",
-							text: value,
-						})
 					}}>
 					<SelectTrigger data-testid="commit-message-api-config-select" className="w-full">
 						<SelectValue placeholder={t("prompts:supportPrompts.enhance.useCurrentConfig")} />

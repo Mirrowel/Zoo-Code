@@ -190,6 +190,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		maxImageFileSize,
 		maxTotalImageSize,
 		customSupportPrompts,
+		commitMessageApiConfigId,
 		profileThresholds,
 		alwaysAllowFollowupQuestions,
 		followupAutoApproveTimeoutMs,
@@ -426,6 +427,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					openRouterImageGenerationSelectedModel,
 					experiments,
 					customSupportPrompts,
+					commitMessageApiConfigId,
 				},
 			})
 
@@ -886,6 +888,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							<PromptsSettings
 								customSupportPrompts={customSupportPrompts || {}}
 								setCustomSupportPrompts={setCustomSupportPromptsField}
+								commitMessageApiConfigId={commitMessageApiConfigId}
+								setCommitMessageApiConfigId={(value) =>
+									setCachedStateField("commitMessageApiConfigId", value)
+								}
 								includeTaskHistoryInEnhance={includeTaskHistoryInEnhance}
 								setIncludeTaskHistoryInEnhance={(value) =>
 									setCachedStateField("includeTaskHistoryInEnhance", value)

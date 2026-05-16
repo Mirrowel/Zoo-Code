@@ -3,14 +3,17 @@ import { ProviderSettingsManager } from "../../core/config/ProviderSettingsManag
 import { t } from "../../i18n"
 import { Package } from "../../shared/package"
 
-import { CommitMessageRequest, CommitMessageResult } from "./types/core"
 import { CommitMessageGenerator } from "./CommitMessageGenerator"
-import { VSCodeCommitMessageAdapter } from "./adapters/VSCodeCommitMessageAdapter"
-import { VscGenerationRequest } from "./types"
+import { GitExtensionService } from "./GitExtensionService"
+import { GitChange } from "./types"
+
+interface VscGenerationRequest {
+	inputBox: { value: string }
+	rootUri?: vscode.Uri
+}
 
 export class CommitMessageProvider implements vscode.Disposable {
 	private generator: CommitMessageGenerator
-	private vscodeAdapter: VSCodeCommitMessageAdapter
 
 	constructor(
 		private context: vscode.ExtensionContext,
@@ -19,7 +22,6 @@ export class CommitMessageProvider implements vscode.Disposable {
 		const providerSettingsManager = new ProviderSettingsManager(this.context)
 
 		this.generator = new CommitMessageGenerator(providerSettingsManager)
-		this.vscodeAdapter = new VSCodeCommitMessageAdapter(this.generator)
 	}
 
 	public async activate(): Promise<void> {
@@ -35,11 +37,125 @@ export class CommitMessageProvider implements vscode.Disposable {
 	}
 
 	private async handleVSCodeCommand(vsRequest?: VscGenerationRequest): Promise<void> {
-		const request: CommitMessageRequest = {
-			workspacePath: this.determineWorkspacePath(vsRequest?.rootUri),
+		try {
+			const workspacePath = this.determineWorkspacePath(vsRequest?.rootUri)
+			const targetRepository = await this.determineTargetRepository(workspacePath)
+			if (!targetRepository?.rootUri) {
+				throw new Error("Could not determine Git repository")
+			}
+
+			await vscode.window.withProgress(
+				{
+					location: vscode.ProgressLocation.SourceControl,
+					title: t("common:commitMessage.generating"),
+					cancellable: false,
+				},
+				async (progress) => {
+					let lastPercentage = 0
+					const reportProgress = (percentage: number, message?: string) => {
+						progress.report({
+							increment: Math.max(0, percentage - lastPercentage),
+							message: message || t("common:commitMessage.generating"),
+						})
+						lastPercentage = percentage
+					}
+
+					reportProgress(5, t("common:commitMessage.initializing"))
+					const gitService = new GitExtensionService(workspacePath)
+
+					try {
+						reportProgress(15, t("common:commitMessage.discoveringFiles"))
+						const resolution = await this.resolveCommitChanges(gitService)
+
+						if (resolution.changes.length === 0) {
+							vscode.window.showInformationMessage(t("common:commitMessage.noChanges"))
+							return
+						}
+
+						reportProgress(25, t("common:commitMessage.foundChanges", { count: resolution.changes.length }))
+
+						if (!resolution.usedStaged) {
+							vscode.window.showInformationMessage(t("common:commitMessage.generatingFromUnstaged"))
+						}
+
+						reportProgress(40, t("common:commitMessage.gettingContext"))
+						const gitContext = await gitService.getCommitContext(
+							resolution.changes,
+							{ staged: resolution.usedStaged, includeRepoContext: true },
+							resolution.files,
+						)
+
+						reportProgress(70, t("common:commitMessage.generating"))
+						const message = await this.generator.generateMessage({
+							workspacePath,
+							selectedFiles: resolution.files,
+							gitContext,
+							onProgress: (update) => {
+								if (update.percentage !== undefined) {
+									reportProgress(70 + update.percentage * 0.25, update.message)
+								}
+							},
+						})
+
+						targetRepository.inputBox.value = message
+						reportProgress(100, t("common:commitMessage.generated"))
+					} finally {
+						gitService.dispose()
+					}
+				},
+			)
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+			vscode.window.showErrorMessage(t("common:commitMessage.generationFailed", { errorMessage }))
+		}
+	}
+
+	private async resolveCommitChanges(gitService: GitExtensionService): Promise<{
+		changes: GitChange[]
+		files: string[]
+		usedStaged: boolean
+	}> {
+		let changes = await gitService.gatherChanges({ staged: true })
+		let usedStaged = true
+
+		if (changes.length === 0) {
+			changes = await gitService.gatherChanges({ staged: false })
+			usedStaged = false
 		}
 
-		await this.vscodeAdapter.generateCommitMessage(request)
+		return {
+			changes,
+			files: changes.map((change) => change.filePath),
+			usedStaged,
+		}
+	}
+
+	private async determineTargetRepository(workspacePath: string): Promise<VscGenerationRequest | null> {
+		try {
+			const gitExtension = vscode.extensions.getExtension("vscode.git")
+			if (!gitExtension) {
+				return null
+			}
+
+			if (!gitExtension.isActive) {
+				await gitExtension.activate()
+			}
+
+			const gitApi = gitExtension.exports.getAPI(1)
+			if (!gitApi) {
+				return null
+			}
+
+			for (const repo of gitApi.repositories ?? []) {
+				if (repo.rootUri && workspacePath.startsWith(repo.rootUri.fsPath)) {
+					return repo
+				}
+			}
+
+			return gitApi.repositories[0] ?? null
+		} catch (error) {
+			return null
+		}
 	}
 
 	private determineWorkspacePath(resourceUri?: vscode.Uri): string {
@@ -55,7 +171,5 @@ export class CommitMessageProvider implements vscode.Disposable {
 		throw new Error("Could not determine workspace path")
 	}
 
-	public dispose(): void {
-		this.vscodeAdapter?.dispose()
-	}
+	public dispose(): void {}
 }
