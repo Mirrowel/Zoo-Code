@@ -1,166 +1,79 @@
-import * as vscode from "vscode"
 import * as path from "path"
-import { spawnSync } from "child_process"
-import { shouldExcludeLockFile } from "./exclusionUtils"
-import { RooIgnoreController } from "../../core/ignore/RooIgnoreController"
+import { execFile } from "child_process"
 import { GitProgressOptions, GitChange, GitOptions, GitStatus } from "./types"
 
 export type { GitChange, GitOptions, GitProgressOptions } from "./types"
 
 export class GitExtensionService {
-	private ignoreController: RooIgnoreController | null = null
-
-	constructor(private workspaceRoot: string) {
-		try {
-			this.ignoreController = new RooIgnoreController(workspaceRoot)
-			this.ignoreController.initialize()
-		} catch (error) {
-			this.ignoreController = null
-		}
-	}
+	constructor(private workspaceRoot: string) {}
 
 	public async gatherChanges(options: GitProgressOptions): Promise<GitChange[]> {
-		try {
-			const statusOutput = this.getStatus(options)
-			if (!statusOutput.trim()) {
-				return []
-			}
-
-			const changes: GitChange[] = []
-			const lines = statusOutput.split("\n").filter((line: string) => line.trim())
-
-			for (const line of lines) {
-				if (!line || line.length < 2) continue
-
-				let statusCode: string
-				let filePath: string
-
-				if (options.staged) {
-					const tabIndex = line.indexOf("\t")
-					if (tabIndex > 0) {
-						statusCode = line.substring(0, tabIndex).trim()
-						filePath = line.substring(tabIndex + 1).trim()
-					} else {
-						continue
-					}
-				} else {
-					if (line.length < 3) continue
-
-					const indexStatus = line.charAt(0)
-					const workingStatus = line.charAt(1)
-					filePath = line.substring(2).trim()
-
-					if (workingStatus !== " ") {
-						statusCode = workingStatus
-					} else if (indexStatus !== " ") {
-						statusCode = indexStatus
-					} else {
-						continue
-					}
-
-					if (indexStatus === "?" && workingStatus === "?") {
-						statusCode = "?"
-					}
-				}
-
-				if (filePath && statusCode) {
-					changes.push({
-						filePath: path.join(this.workspaceRoot, filePath),
-						status: this.getChangeStatusFromCode(statusCode),
-						staged: options.staged,
-					})
-				}
-			}
-
-			return changes
-		} catch (error) {
+		const statusOutput = await this.getStatus(options)
+		if (!statusOutput) {
 			return []
 		}
+
+		return options.staged ? this.parseNameStatus(statusOutput, true) : this.parsePorcelainStatus(statusOutput)
 	}
 
-	public spawnGitWithArgs(args: string[]): string {
-		const result = spawnSync("git", args, {
-			cwd: this.workspaceRoot,
-			encoding: "utf8",
-			stdio: ["ignore", "pipe", "pipe"],
+	public async spawnGitWithArgs(args: string[]): Promise<string> {
+		return new Promise((resolve, reject) => {
+			execFile(
+				"git",
+				args,
+				{
+					cwd: this.workspaceRoot,
+					encoding: "utf8",
+					maxBuffer: 20 * 1024 * 1024,
+				},
+				(error, stdout, stderr) => {
+					if (error) {
+						reject(new Error(`Git command failed: ${stderr || error.message}`))
+						return
+					}
+
+					resolve(stdout)
+				},
+			)
 		})
-
-		if (result.error) {
-			throw result.error
-		}
-
-		if (result.status !== 0) {
-			throw new Error(`Git command failed with status ${result.status}: ${result.stderr}`)
-		}
-
-		return result.stdout
 	}
 
 	private async getDiffForChanges(changes: GitChange[], options: GitProgressOptions): Promise<string> {
-		const { onProgress } = options || {}
 		if (changes.length === 0) {
 			return ""
 		}
 
-		try {
-			const diffs: string[] = []
-			let processedFiles = 0
+		const diffableChanges = changes.filter((change) => change.status !== "?")
+		const untrackedFiles = changes.filter((change) => change.status === "?")
+		const parts: string[] = []
 
-			for (const change of changes) {
-				const relativePath = path.relative(this.workspaceRoot, change.filePath)
-
-				if (this.shouldIncludeFile(relativePath)) {
-					const stagedFlag = change.staged ?? options.staged ?? true
-					const diff = this.getGitDiff(change.filePath, { staged: stagedFlag })
-
-					if (diff) {
-						diffs.push(diff)
-					}
-				}
-
-				processedFiles++
-				this.reportProgress(onProgress, processedFiles, changes.length)
+		if (diffableChanges.length > 0) {
+			const diffArgs = this.buildDiffArgs(options.staged, diffableChanges)
+			const diff = await this.spawnGitWithArgs(diffArgs)
+			if (diff.trim()) {
+				parts.push(diff)
 			}
-
-			return diffs.join("\n")
-		} catch (error) {
-			return ""
 		}
+
+		if (untrackedFiles.length > 0) {
+			parts.push(untrackedFiles.map((change) => `New untracked file: ${change.filePath}`).join("\n"))
+		}
+
+		options.onProgress?.(100)
+		return parts.join("\n")
 	}
 
-	private getStatus(options: GitOptions): string {
-		const { staged } = options
-		if (staged) {
-			return this.spawnGitWithArgs(["diff", "--name-status", "--cached"])
-		} else {
-			return this.spawnGitWithArgs(["status", "--porcelain"])
-		}
+	private async getStatus(options: GitOptions): Promise<string> {
+		return options.staged
+			? this.spawnGitWithArgs(["diff", "--name-status", "--cached", "-z"])
+			: this.spawnGitWithArgs(["status", "--porcelain=v1", "-z"])
 	}
 
-	private getGitDiff(filePath: string, options: GitOptions): string {
-		const { staged } = options
-
-		try {
-			if (this.isBinaryFile(filePath, staged)) {
-				return `Binary file ${filePath} has been ${staged ? "staged" : "modified"}`
-			}
-
-			if (!staged && this.isUntrackedFile(filePath)) {
-				return `New untracked file: ${filePath}`
-			}
-
-			const diffArgs = this.buildDiffArgs(staged, filePath)
-			return this.spawnGitWithArgs(diffArgs)
-		} catch (error) {
-			return `File ${filePath} - diff unavailable`
-		}
-	}
-
-	private getCurrentBranch(): string {
+	private async getCurrentBranch(): Promise<string> {
 		return this.spawnGitWithArgs(["branch", "--show-current"])
 	}
 
-	private getRecentCommits(count: number = 5): string {
+	private async getRecentCommits(count: number = 5): Promise<string> {
 		return this.spawnGitWithArgs(["log", "--oneline", `-${count}`])
 	}
 
@@ -170,76 +83,180 @@ export class GitExtensionService {
 		specificFiles?: string[],
 	): Promise<string> {
 		const { staged, includeRepoContext = true } = options
+		let context = "## Git Context for Commit Message Generation\n\n"
+
+		const targetChanges = this.filterChanges(changes, specificFiles)
+		const fileInfo = specificFiles ? ` (${specificFiles.length} selected files)` : ""
+		const allStaged = targetChanges.every((change) => change.staged)
+		const allUnstaged = targetChanges.every((change) => !change.staged)
+		const changeDescriptor = allStaged ? "Staged" : allUnstaged ? "Unstaged" : "Selected"
 
 		try {
-			let context = "## Git Context for Commit Message Generation\n\n"
+			const diff = await this.getDiffForChanges(targetChanges, options)
+			context += `### Full Diff of ${changeDescriptor} Changes${fileInfo}\n\`\`\`diff\n${diff}\n\`\`\`\n\n`
+		} catch (error) {
+			const changeType = staged ? "Staged" : "Unstaged"
+			context += `### Full Diff of ${changeType} Changes${fileInfo}\n\`\`\`diff\n(No diff available)\n\`\`\`\n\n`
+		}
 
-			const targetChanges =
-				specificFiles && specificFiles.length > 0
-					? changes.filter((change) => {
-							const absolutePath = change.filePath
-							const relativePath = path.relative(this.workspaceRoot, absolutePath)
-							return specificFiles.some(
-								(file) =>
-									file === absolutePath ||
-									file === relativePath ||
-									absolutePath.endsWith(file) ||
-									relativePath === path.normalize(file),
-							)
-						})
-					: changes
+		if (targetChanges.length > 0) {
+			const summaryLines = targetChanges.map((change) => {
+				const relativePath = this.getRelativePath(change.filePath)
+				const scope = change.staged ? "staged" : "unstaged"
+				const status = this.getReadableStatus(change.status)
+
+				if (change.oldFilePath) {
+					const oldRelativePath = this.getRelativePath(change.oldFilePath)
+					return `${status} (${scope}): ${oldRelativePath} -> ${relativePath}`
+				}
+
+				return `${status} (${scope}): ${relativePath}`
+			})
+
+			context += "### Change Summary\n```\n" + summaryLines.join("\n") + "\n```\n\n"
+		} else {
+			context += "### Change Summary\n```\n(No changes matched selection)\n```\n\n"
+		}
+
+		if (includeRepoContext) {
+			context += "### Repository Context\n\n"
 
 			try {
-				const diff = await this.getDiffForChanges(targetChanges, options)
-				const fileInfo = specificFiles ? ` (${specificFiles.length} selected files)` : ""
-				const allStaged = targetChanges.every((change) => change.staged)
-				const allUnstaged = targetChanges.every((change) => !change.staged)
-				const changeDescriptor = allStaged ? "Staged" : allUnstaged ? "Unstaged" : "Selected"
-				context += `### Full Diff of ${changeDescriptor} Changes${fileInfo}\n\`\`\`diff\n` + diff + "\n```\n\n"
-			} catch (error) {
-				const changeType = staged ? "Staged" : "Unstaged"
-				const fileInfo = specificFiles ? ` (${specificFiles.length} selected files)` : ""
-				context += `### Full Diff of ${changeType} Changes${fileInfo}\n\`\`\`diff\n(No diff available)\n\`\`\`\n\n`
-			}
+				const currentBranch = await this.getCurrentBranch()
+				if (currentBranch) {
+					context += "**Current branch:** `" + currentBranch.trim() + "`\n\n"
+				}
+			} catch (error) {}
 
-			if (targetChanges.length > 0) {
-				const summaryLines = targetChanges.map((change) => {
-					const relativePath = path.relative(this.workspaceRoot, change.filePath)
-					const scope = change.staged ? "staged" : "unstaged"
-					return `${this.getReadableStatus(change.status)} (${scope}): ${relativePath}`
-				})
-
-				context += "### Change Summary\n```\n" + summaryLines.join("\n") + "\n```\n\n"
-			} else {
-				context += "### Change Summary\n```\n(No changes matched selection)\n```\n\n"
-			}
-
-			if (includeRepoContext) {
-				context += "### Repository Context\n\n"
-
-				try {
-					const currentBranch = this.getCurrentBranch()
-					if (currentBranch) {
-						context += "**Current branch:** `" + currentBranch.trim() + "`\n\n"
-					}
-				} catch (error) {}
-
-				try {
-					const recentCommits = this.getRecentCommits()
-					if (recentCommits) {
-						context += "**Recent commits:**\n```\n" + recentCommits + "\n```\n"
-					}
-				} catch (error) {}
-			}
-
-			return context
-		} catch (error) {
-			return "## Error generating commit context\n\nUnable to gather complete context for commit message generation."
+			try {
+				const recentCommits = await this.getRecentCommits()
+				if (recentCommits) {
+					context += "**Recent commits:**\n```\n" + recentCommits + "\n```\n"
+				}
+			} catch (error) {}
 		}
+
+		return context
+	}
+
+	private parseNameStatus(output: string, staged: boolean): GitChange[] {
+		const fields = this.splitNullDelimited(output)
+		const changes: GitChange[] = []
+
+		for (let index = 0; index < fields.length; index++) {
+			const statusCode = fields[index]
+			const status = this.getChangeStatusFromCode(statusCode)
+
+			if (status === "R" || status === "C") {
+				const oldFilePath = fields[++index]
+				const filePath = fields[++index]
+				if (oldFilePath && filePath) {
+					changes.push({
+						filePath: path.join(this.workspaceRoot, filePath),
+						oldFilePath: path.join(this.workspaceRoot, oldFilePath),
+						status,
+						staged,
+					})
+				}
+				continue
+			}
+
+			const filePath = fields[++index]
+			if (filePath) {
+				changes.push({
+					filePath: path.join(this.workspaceRoot, filePath),
+					status,
+					staged,
+				})
+			}
+		}
+
+		return changes
+	}
+
+	private parsePorcelainStatus(output: string): GitChange[] {
+		const fields = this.splitNullDelimited(output)
+		const changes: GitChange[] = []
+
+		for (let index = 0; index < fields.length; index++) {
+			const entry = fields[index]
+			if (entry.length < 4) {
+				continue
+			}
+
+			const indexStatus = entry.charAt(0)
+			const workingStatus = entry.charAt(1)
+			const statusCode = indexStatus === "?" && workingStatus === "?" ? "?" : workingStatus.trim() || indexStatus
+			const status = this.getChangeStatusFromCode(statusCode)
+			const filePath = entry.substring(3)
+
+			if (status === "R" || status === "C") {
+				const oldFilePath = fields[++index]
+				changes.push({
+					filePath: path.join(this.workspaceRoot, filePath),
+					oldFilePath: oldFilePath ? path.join(this.workspaceRoot, oldFilePath) : undefined,
+					status,
+					staged: false,
+				})
+				continue
+			}
+
+			changes.push({
+				filePath: path.join(this.workspaceRoot, filePath),
+				status,
+				staged: false,
+			})
+		}
+
+		return changes
+	}
+
+	private splitNullDelimited(output: string): string[] {
+		return output.split("\0").filter(Boolean)
+	}
+
+	private filterChanges(changes: GitChange[], specificFiles?: string[]): GitChange[] {
+		if (!specificFiles || specificFiles.length === 0) {
+			return changes
+		}
+
+		return changes.filter((change) => {
+			const absolutePath = change.filePath
+			const relativePath = this.getRelativePath(absolutePath)
+			return specificFiles.some((file) => {
+				const normalizedFile = path.normalize(file).replace(/\\/g, "/")
+				return (
+					file === absolutePath ||
+					file === relativePath ||
+					absolutePath.endsWith(file) ||
+					relativePath === normalizedFile
+				)
+			})
+		})
+	}
+
+	private buildDiffArgs(staged: boolean, changes: GitChange[]): string[] {
+		const args = staged ? ["diff", "--cached"] : ["diff"]
+		const paths = Array.from(
+			new Set(
+				changes.flatMap((change) =>
+					[change.filePath, change.oldFilePath]
+						.filter((filePath): filePath is string => Boolean(filePath))
+						.map((filePath) => this.getRelativePath(filePath)),
+				),
+			),
+		)
+
+		return paths.length > 0 ? [...args, "--", ...paths] : args
+	}
+
+	private getRelativePath(filePath: string): string {
+		return path.relative(this.workspaceRoot, filePath).replace(/\\/g, "/")
 	}
 
 	private getChangeStatusFromCode(code: string): GitStatus {
-		switch (code) {
+		const status = code.charAt(0)
+		switch (status) {
 			case "M":
 			case "A":
 			case "D":
@@ -247,7 +264,7 @@ export class GitExtensionService {
 			case "C":
 			case "U":
 			case "?":
-				return code as GitStatus
+				return status as GitStatus
 			default:
 				return "Unknown"
 		}
@@ -275,65 +292,5 @@ export class GitExtensionService {
 		}
 	}
 
-	private shouldIncludeFile(relativePath: string): boolean {
-		let isValidFile = true
-		if (this.ignoreController) {
-			try {
-				isValidFile = this.ignoreController.validateAccess(relativePath)
-			} catch (error) {
-				isValidFile = true
-			}
-		}
-		return isValidFile && !shouldExcludeLockFile(relativePath)
-	}
-
-	private reportProgress(
-		onProgress: ((percentage: number) => void) | undefined,
-		processed: number,
-		total: number,
-	): void {
-		if (onProgress && total > 0) {
-			const percentage = (processed / total) * 100
-			onProgress(percentage)
-		}
-	}
-
-	private isBinaryFile(filePath: string, staged: boolean): boolean {
-		try {
-			const checkArgs = this.buildNumstatArgs(staged, filePath)
-			const numstatOutput = this.spawnGitWithArgs(checkArgs)
-			return numstatOutput.includes("-\t-\t")
-		} catch (error) {
-			return false
-		}
-	}
-
-	private isUntrackedFile(filePath: string): boolean {
-		try {
-			const statusArgs = ["status", "--porcelain", "--", filePath]
-			const statusOutput = this.spawnGitWithArgs(statusArgs)
-			return statusOutput.startsWith("??")
-		} catch (error) {
-			return false
-		}
-	}
-
-	private buildNumstatArgs(staged: boolean, filePath: string): string[] {
-		return staged ? ["diff", "--cached", "--numstat", "--", filePath] : ["diff", "--numstat", "--", filePath]
-	}
-
-	private buildDiffArgs(staged: boolean, filePath: string): string[] {
-		return staged ? ["diff", "--cached", "--", filePath] : ["diff", "--", filePath]
-	}
-
-	public dispose(): void {
-		try {
-			if (this.ignoreController) {
-				this.ignoreController.dispose()
-			}
-		} catch (error) {
-		} finally {
-			this.ignoreController = null
-		}
-	}
+	public dispose(): void {}
 }
