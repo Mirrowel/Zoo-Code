@@ -1605,11 +1605,6 @@ export const webviewMessageHandler = async (
 			await updateGlobalState("enhancementApiConfigId", message.text)
 			await provider.postStateToWebview()
 			break
-		case "commitMessageApiConfigId":
-			await updateGlobalState("commitMessageApiConfigId", message.text)
-			await provider.postStateToWebview()
-			break
-
 		case "autoApprovalEnabled":
 			await updateGlobalState("autoApprovalEnabled", message.bool ?? false)
 			await provider.postStateToWebview()
