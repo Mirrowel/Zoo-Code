@@ -19,6 +19,7 @@ import {
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { SearchableSetting } from "./SearchableSetting"
+import CommitMessagePromptSettings from "./CommitMessagePromptSettings"
 
 interface PromptsSettingsProps {
 	customSupportPrompts: Record<string, string | undefined>
@@ -244,6 +245,8 @@ const PromptsSettings = ({
 							</div>
 						</div>
 					)}
+
+					{activeSupportOption === "COMMIT_MESSAGE" && <CommitMessagePromptSettings />}
 				</div>
 			</Section>
 		</div>
