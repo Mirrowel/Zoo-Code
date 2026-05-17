@@ -2,10 +2,9 @@ import * as vscode from "vscode"
 import { ProviderSettingsManager } from "../../core/config/ProviderSettingsManager"
 import { t } from "../../i18n"
 import { Package } from "../../shared/package"
+import { GitChange, GitContextCollector } from "../git-context"
 
 import { CommitMessageGenerator } from "./CommitMessageGenerator"
-import { GitExtensionService } from "./GitExtensionService"
-import { GitChange } from "./types"
 
 interface VscGenerationRequest {
 	inputBox: { value: string }
@@ -61,11 +60,11 @@ export class CommitMessageProvider implements vscode.Disposable {
 					}
 
 					reportProgress(5, t("common:commitMessage.initializing"))
-					const gitService = new GitExtensionService(workspacePath)
+					const gitCollector = new GitContextCollector(workspacePath)
 
 					try {
 						reportProgress(15, t("common:commitMessage.discoveringFiles"))
-						const resolution = await this.resolveCommitChanges(gitService)
+						const resolution = await this.resolveCommitChanges(gitCollector)
 
 						if (resolution.changes.length === 0) {
 							vscode.window.showInformationMessage(t("common:commitMessage.noChanges"))
@@ -79,7 +78,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 						}
 
 						reportProgress(40, t("common:commitMessage.gettingContext"))
-						const gitContextResult = await gitService.getCommitContextResult(
+						const gitContextResult = await gitCollector.collectContext(
 							resolution.changes,
 							{ staged: resolution.usedStaged, includeRepoContext: true },
 							resolution.files,
@@ -107,7 +106,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 						targetRepository.inputBox.value = message
 						reportProgress(100, t("common:commitMessage.generated"))
 					} finally {
-						gitService.dispose()
+						gitCollector.dispose()
 					}
 				},
 			)
@@ -117,16 +116,16 @@ export class CommitMessageProvider implements vscode.Disposable {
 		}
 	}
 
-	private async resolveCommitChanges(gitService: GitExtensionService): Promise<{
+	private async resolveCommitChanges(gitCollector: GitContextCollector): Promise<{
 		changes: GitChange[]
 		files: string[]
 		usedStaged: boolean
 	}> {
-		let changes = await gitService.gatherChanges({ staged: true })
+		let changes = await gitCollector.gatherChanges({ staged: true })
 		let usedStaged = true
 
 		if (changes.length === 0) {
-			changes = await gitService.gatherChanges({ staged: false })
+			changes = await gitCollector.gatherChanges({ staged: false })
 			usedStaged = false
 		}
 

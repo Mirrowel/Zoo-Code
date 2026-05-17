@@ -1,20 +1,47 @@
 import { ContextProxy } from "../../core/config/ContextProxy"
 import { ProviderSettingsManager } from "../../core/config/ProviderSettingsManager"
-import { singleCompletionHandler } from "../../utils/single-completion-handler"
+import { singleCompletionHandler as defaultSingleCompletionHandler } from "../../utils/single-completion-handler"
 import { supportPrompt } from "../../shared/support-prompt"
-import { addCustomInstructions } from "../../core/prompts/sections/custom-instructions"
+import { addCustomInstructions as defaultAddCustomInstructions } from "../../core/prompts/sections/custom-instructions"
 import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName, type ProviderSettings } from "@roo-code/types"
 
 import { GenerateMessageParams, PromptOptions, ProgressUpdate } from "./types/core"
 
+export interface CommitMessageContextProxy {
+	isInitialized: boolean
+	getProviderSettings(): ProviderSettings
+	getValue(key: any): unknown
+}
+
+export interface CommitMessageGeneratorDependencies {
+	getContextProxy?: () => CommitMessageContextProxy
+	completePrompt?: (apiConfiguration: ProviderSettings, promptText: string) => Promise<string>
+	addCustomInstructions?: typeof defaultAddCustomInstructions
+	captureGenerated?: () => void
+	logger?: Pick<Console, "warn">
+}
+
 export class CommitMessageGenerator {
 	private readonly providerSettingsManager: ProviderSettingsManager
+	private readonly dependencies: Required<CommitMessageGeneratorDependencies>
 	private previousGitContext: string | null = null
 	private previousCommitMessage: string | null = null
 
-	constructor(providerSettingsManager: ProviderSettingsManager) {
+	constructor(
+		providerSettingsManager: ProviderSettingsManager,
+		dependencies: CommitMessageGeneratorDependencies = {},
+	) {
 		this.providerSettingsManager = providerSettingsManager
+		this.dependencies = {
+			getContextProxy: dependencies.getContextProxy ?? (() => ContextProxy.instance),
+			completePrompt: dependencies.completePrompt ?? defaultSingleCompletionHandler,
+			addCustomInstructions: dependencies.addCustomInstructions ?? defaultAddCustomInstructions,
+			captureGenerated:
+				dependencies.captureGenerated ??
+				(() => TelemetryService.instance.captureEvent(TelemetryEventName.COMMIT_MSG_GENERATED)),
+			logger: dependencies.logger ?? console,
+		}
 	}
 
 	async generateMessage(params: GenerateMessageParams): Promise<string> {
@@ -31,7 +58,7 @@ export class CommitMessageGenerator {
 			this.previousGitContext = gitContext
 			this.previousCommitMessage = generatedMessage
 
-			TelemetryService.instance.captureEvent(TelemetryEventName.COMMIT_MSG_GENERATED)
+			this.dependencies.captureGenerated()
 
 			onProgress?.({
 				message: "Commit message generated successfully",
@@ -48,7 +75,7 @@ export class CommitMessageGenerator {
 	async buildPrompt(gitContext: string, options: PromptOptions, workspacePath: string): Promise<string> {
 		const { customSupportPrompts = {}, previousContext, previousMessage } = options
 
-		const customInstructions = await addCustomInstructions("", "", workspacePath, "commit", {
+		const customInstructions = await this.dependencies.addCustomInstructions("", "", workspacePath, "commit", {
 			language: "en",
 		})
 
@@ -106,21 +133,21 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 		workspacePath: string,
 		onProgress?: (progress: ProgressUpdate) => void,
 	): Promise<string> {
-		const contextProxy = ContextProxy.instance
+		const contextProxy = this.dependencies.getContextProxy()
 		if (!contextProxy.isInitialized) {
 			throw new Error("ContextProxy not initialized. Please try again after the extension has fully loaded.")
 		}
 		const apiConfiguration = contextProxy.getProviderSettings()
-		const commitMessageApiConfigId = contextProxy.getValue("commitMessageApiConfigId")
-		const listApiConfigMeta = contextProxy.getValue("listApiConfigMeta") || []
-		const customSupportPrompts = contextProxy.getValue("customSupportPrompts") || {}
+		const commitMessageApiConfigId = contextProxy.getValue("commitMessageApiConfigId") as string | undefined
+		const listApiConfigMeta = (contextProxy.getValue("listApiConfigMeta") || []) as Array<{ id: string }>
+		const customSupportPrompts = (contextProxy.getValue("customSupportPrompts") || {}) as Record<
+			string,
+			string | undefined
+		>
 
 		let configToUse: ProviderSettings = apiConfiguration
 
-		if (
-			commitMessageApiConfigId &&
-			listApiConfigMeta.find(({ id }: { id: string }) => id === commitMessageApiConfigId)
-		) {
+		if (commitMessageApiConfigId && listApiConfigMeta.find(({ id }) => id === commitMessageApiConfigId)) {
 			try {
 				await this.providerSettingsManager.initialize()
 				const { name: _, ...providerSettings } = await this.providerSettingsManager.getProfile({
@@ -131,7 +158,7 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 					configToUse = providerSettings
 				}
 			} catch (error) {
-				console.warn(
+				this.dependencies.logger.warn(
 					`Failed to load commit message API profile ${commitMessageApiConfigId}; falling back to current API configuration`,
 					error,
 				)
@@ -153,7 +180,7 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 			increment: 10,
 		})
 
-		const response = await singleCompletionHandler(configToUse, prompt)
+		const response = await this.dependencies.completePrompt(configToUse, prompt)
 
 		onProgress?.({
 			message: "Processing AI response...",
