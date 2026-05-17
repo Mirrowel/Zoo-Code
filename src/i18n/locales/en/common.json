@@ -268,6 +268,7 @@
 		"noChanges": "Zoo: No changes found to analyze",
 		"generated": "Zoo: Commit message generated!",
 		"generationFailed": "Zoo: Failed to generate commit message: {{errorMessage}}",
+		"contextWarnings": "Zoo: Git context warning: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Generating message using unstaged changes",
 		"activationFailed": "Zoo: Failed to activate message generator: {{error}}",
 		"providerRegistered": "Zoo: Commit message provider registered",
