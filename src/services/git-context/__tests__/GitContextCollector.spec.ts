@@ -4,7 +4,7 @@ import { EventEmitter } from "events"
 import { promises as fs } from "fs"
 import { spawn } from "child_process"
 
-import { GitExtensionService } from "../GitExtensionService"
+import { GitContextCollector } from "../GitContextCollector"
 
 vi.mock("child_process", () => ({
 	spawn: vi.fn(),
@@ -39,7 +39,7 @@ function mockGitCommand(stdout: string, stderr = "", code = 0) {
 	}) as unknown as typeof spawn)
 }
 
-describe("GitExtensionService", () => {
+describe("GitContextCollector", () => {
 	beforeEach(() => {
 		mockSpawn.mockReset()
 	})
@@ -49,8 +49,8 @@ describe("GitExtensionService", () => {
 			["M", "src/file.ts", "R100", "src/old.ts", "src/new.ts", "C075", "src/a.ts", "src/b.ts", ""].join("\0"),
 		)
 
-		const service = new GitExtensionService(workspaceRoot)
-		const changes = await service.gatherChanges({ staged: true })
+		const collector = new GitContextCollector(workspaceRoot)
+		const changes = await collector.gatherChanges({ staged: true })
 
 		expect(mockSpawn).toHaveBeenCalledWith(
 			"git",
@@ -74,12 +74,26 @@ describe("GitExtensionService", () => {
 		])
 	})
 
-	it("keeps lockfiles in commit context because git state is authoritative", async () => {
+	it("requests all untracked files instead of collapsed untracked directories", async () => {
+		mockGitCommand(["?? src/new.ts", ""].join("\0"))
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const changes = await collector.gatherChanges({ staged: false })
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"git",
+			["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(changes).toEqual([{ filePath: path.join(workspaceRoot, "src/new.ts"), status: "?", staged: false }])
+	})
+
+	it("keeps lockfiles in git context because git state is authoritative", async () => {
 		mockGitCommand("1\t1\tpackage-lock.json\n")
 		mockGitCommand("diff --git a/package-lock.json b/package-lock.json\n")
 
-		const service = new GitExtensionService(workspaceRoot)
-		const context = await service.getCommitContext(
+		const collector = new GitContextCollector(workspaceRoot)
+		const context = await collector.getContext(
 			[{ filePath: path.join(workspaceRoot, "package-lock.json"), status: "M", staged: true }],
 			{ staged: true, includeRepoContext: false },
 		)
@@ -88,15 +102,30 @@ describe("GitExtensionService", () => {
 		expect(context).toContain("Modified (staged): package-lock.json")
 	})
 
+	it("can gather changes and collect context in one reusable call", async () => {
+		mockGitCommand(["M", "src/file.ts", ""].join("\0"))
+		mockGitCommand("1\t1\tsrc/file.ts\n")
+		mockGitCommand("diff --git a/src/file.ts b/src/file.ts\n")
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const result = await collector.collect({ staged: true, includeRepoContext: false })
+
+		expect(result.changes).toEqual([
+			{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true },
+		])
+		expect(result.context).toContain("diff --git a/src/file.ts b/src/file.ts")
+		expect(result.warnings).toEqual([])
+	})
+
 	it("includes full new-file diffs for untracked text files", async () => {
-		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-commit-context-"))
+		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-git-context-"))
 		try {
 			const filePath = path.join(tempRoot, "src", "new.ts")
 			await fs.mkdir(path.dirname(filePath), { recursive: true })
 			await fs.writeFile(filePath, "export const value = 1\n")
 
-			const service = new GitExtensionService(tempRoot)
-			const context = await service.getCommitContext([{ filePath, status: "?", staged: false }], {
+			const collector = new GitContextCollector(tempRoot)
+			const context = await collector.getContext([{ filePath, status: "?", staged: false }], {
 				staged: false,
 				includeRepoContext: false,
 			})
@@ -112,13 +141,13 @@ describe("GitExtensionService", () => {
 	})
 
 	it("summarizes untracked binary files without binary payload", async () => {
-		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-commit-context-"))
+		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-git-context-"))
 		try {
 			const filePath = path.join(tempRoot, "image.bin")
 			await fs.writeFile(filePath, Buffer.from([0, 1, 2, 3]))
 
-			const service = new GitExtensionService(tempRoot)
-			const context = await service.getCommitContext([{ filePath, status: "?", staged: false }], {
+			const collector = new GitContextCollector(tempRoot)
+			const context = await collector.getContext([{ filePath, status: "?", staged: false }], {
 				staged: false,
 				includeRepoContext: false,
 			})
@@ -135,13 +164,13 @@ describe("GitExtensionService", () => {
 		mockGitCommand("1\t1\tsrc/file.ts\n")
 		mockGitCommand("", "fatal: bad revision", 128)
 
-		const service = new GitExtensionService(workspaceRoot)
+		const collector = new GitContextCollector(workspaceRoot)
 
 		await expect(
-			service.getCommitContext(
-				[{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }],
-				{ staged: true, includeRepoContext: false },
-			),
+			collector.getContext([{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }], {
+				staged: true,
+				includeRepoContext: false,
+			}),
 		).rejects.toThrow("fatal: bad revision")
 	})
 
@@ -151,8 +180,8 @@ describe("GitExtensionService", () => {
 		mockGitCommand("", "fatal: branch unavailable", 128)
 		mockGitCommand("", "fatal: log unavailable", 128)
 
-		const service = new GitExtensionService(workspaceRoot)
-		const result = await service.getCommitContextResult(
+		const collector = new GitContextCollector(workspaceRoot)
+		const result = await collector.collectContext(
 			[{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }],
 			{ staged: true, includeRepoContext: true },
 		)
@@ -161,7 +190,7 @@ describe("GitExtensionService", () => {
 			expect.stringContaining("Current branch unavailable"),
 			expect.stringContaining("Recent commits unavailable"),
 		])
-		expect(result.context).toContain("### Context Warnings")
+		expect(result.context).toContain("### Git Context Warnings")
 		expect(result.context).toContain("diff --git a/src/file.ts b/src/file.ts")
 	})
 })

@@ -1,14 +1,27 @@
 import * as path from "path"
 import { promises as fs } from "fs"
 import { spawn } from "child_process"
-import { GitProgressOptions, GitChange, GitContextResult, GitOptions, GitStatus } from "./types"
+import {
+	GitContextCollection,
+	GitContextCollectorOptions,
+	GitChange,
+	GitContextOptions,
+	GitContextResult,
+	GitStatus,
+} from "./types"
 
-export type { GitChange, GitOptions, GitProgressOptions } from "./types"
+export type {
+	GitChange,
+	GitContextCollection,
+	GitContextCollectorOptions,
+	GitContextOptions,
+	GitContextResult,
+} from "./types"
 
-export class GitExtensionService {
+export class GitContextCollector {
 	constructor(private workspaceRoot: string) {}
 
-	public async gatherChanges(options: GitProgressOptions): Promise<GitChange[]> {
+	public async gatherChanges(options: GitContextCollectorOptions): Promise<GitChange[]> {
 		const statusOutput = await this.getStatus(options)
 		if (!statusOutput) {
 			return []
@@ -17,7 +30,14 @@ export class GitExtensionService {
 		return options.staged ? this.parseNameStatus(statusOutput, true) : this.parsePorcelainStatus(statusOutput)
 	}
 
-	public async spawnGitWithArgs(args: string[]): Promise<string> {
+	public async collect(options: GitContextCollectorOptions, specificFiles?: string[]): Promise<GitContextCollection> {
+		const changes = await this.gatherChanges(options)
+		const result = await this.collectContext(changes, options, specificFiles)
+
+		return { ...result, changes }
+	}
+
+	private async runGit(args: string[]): Promise<string> {
 		return new Promise((resolve, reject) => {
 			const child = spawn("git", args, {
 				cwd: this.workspaceRoot,
@@ -42,7 +62,7 @@ export class GitExtensionService {
 		})
 	}
 
-	private async getDiffForChanges(changes: GitChange[], options: GitProgressOptions): Promise<string> {
+	private async getDiffForChanges(changes: GitChange[], options: GitContextCollectorOptions): Promise<string> {
 		if (changes.length === 0) {
 			return ""
 		}
@@ -54,7 +74,7 @@ export class GitExtensionService {
 
 		if (diffableChanges.length > 0) {
 			const diffArgs = this.buildDiffArgs(options.staged, diffableChanges)
-			const diff = await this.spawnGitWithArgs(diffArgs)
+			const diff = await this.runGit(diffArgs)
 			if (diff.trim()) {
 				parts.push(diff)
 			}
@@ -89,7 +109,7 @@ export class GitExtensionService {
 			}
 
 			const args = this.buildNumstatArgs(staged, change)
-			const output = await this.spawnGitWithArgs(args)
+			const output = await this.runGit(args)
 			if (output.includes("-\t-\t")) {
 				binaryFiles.add(change.filePath)
 			}
@@ -161,27 +181,27 @@ export class GitExtensionService {
 		return diffLines.join("\n")
 	}
 
-	private async getStatus(options: GitOptions): Promise<string> {
+	private async getStatus(options: GitContextOptions): Promise<string> {
 		return options.staged
-			? this.spawnGitWithArgs(["diff", "--name-status", "--cached", "-z"])
-			: this.spawnGitWithArgs(["status", "--porcelain=v1", "-z"])
+			? this.runGit(["diff", "--name-status", "--cached", "-z"])
+			: this.runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"])
 	}
 
 	private async getCurrentBranch(): Promise<string> {
-		return this.spawnGitWithArgs(["branch", "--show-current"])
+		return this.runGit(["branch", "--show-current"])
 	}
 
 	private async getRecentCommits(count: number = 5): Promise<string> {
-		return this.spawnGitWithArgs(["log", "--oneline", `-${count}`])
+		return this.runGit(["log", "--oneline", `-${count}`])
 	}
 
-	public async getCommitContextResult(
+	public async collectContext(
 		changes: GitChange[],
-		options: GitProgressOptions,
+		options: GitContextCollectorOptions,
 		specificFiles?: string[],
 	): Promise<GitContextResult> {
 		const { staged, includeRepoContext = true } = options
-		let context = "## Git Context for Commit Message Generation\n\n"
+		let context = "## Git Context\n\n"
 		const warnings: string[] = []
 
 		const targetChanges = this.filterChanges(changes, specificFiles)
@@ -235,18 +255,18 @@ export class GitExtensionService {
 		}
 
 		if (warnings.length > 0) {
-			context += "\n### Context Warnings\n```\n" + warnings.join("\n") + "\n```\n"
+			context += "\n### Git Context Warnings\n```\n" + warnings.join("\n") + "\n```\n"
 		}
 
 		return { context, warnings }
 	}
 
-	public async getCommitContext(
+	public async getContext(
 		changes: GitChange[],
-		options: GitProgressOptions,
+		options: GitContextCollectorOptions,
 		specificFiles?: string[],
 	): Promise<string> {
-		return (await this.getCommitContextResult(changes, options, specificFiles)).context
+		return (await this.collectContext(changes, options, specificFiles)).context
 	}
 
 	private getErrorMessage(error: unknown): string {
