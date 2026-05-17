@@ -17,6 +17,7 @@ import {
 	type Command,
 	type McpServer,
 	type CommitMessageGitContextSettings,
+	type CommitMessageProfilesSettings,
 	defaultCommitMessageGitContextSettings,
 	RouterModels,
 	ORGANIZATION_ALLOW_ALL,
@@ -111,6 +112,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCommitMessageApiConfigId: (value: string) => void
 	commitMessageGitContext?: CommitMessageGitContextSettings
 	setCommitMessageGitContext: (value: CommitMessageGitContextSettings) => void
+	commitMessageProfiles?: CommitMessageProfilesSettings
+	setCommitMessageProfiles: (value: CommitMessageProfilesSettings) => void
 	setExperimentEnabled: (id: ExperimentId, enabled: boolean) => void
 	setAutoApprovalEnabled: (value: boolean) => void
 	customModes: ModeConfig[]
@@ -227,6 +230,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		enhancementApiConfigId: "",
 		commitMessageApiConfigId: "",
 		commitMessageGitContext: defaultCommitMessageGitContextSettings,
+		commitMessageProfiles: undefined,
 		hasOpenedModeSelector: false, // Default to false (not opened yet)
 		autoApprovalEnabled: false,
 		customModes: [],
@@ -578,6 +582,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState((prevState) => ({ ...prevState, commitMessageApiConfigId: value })),
 		setCommitMessageGitContext: (value) =>
 			setState((prevState) => ({ ...prevState, commitMessageGitContext: value })),
+		setCommitMessageProfiles: (value) => setState((prevState) => ({ ...prevState, commitMessageProfiles: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 		setCustomModes: (value) => setState((prevState) => ({ ...prevState, customModes: value })),
 		setMaxOpenTabsContext: (value) => setState((prevState) => ({ ...prevState, maxOpenTabsContext: value })),

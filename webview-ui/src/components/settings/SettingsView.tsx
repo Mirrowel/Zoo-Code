@@ -192,6 +192,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		customSupportPrompts,
 		commitMessageApiConfigId,
 		commitMessageGitContext,
+		commitMessageProfiles,
 		profileThresholds,
 		alwaysAllowFollowupQuestions,
 		followupAutoApproveTimeoutMs,
@@ -430,6 +431,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					customSupportPrompts,
 					commitMessageApiConfigId,
 					commitMessageGitContext,
+					commitMessageProfiles,
 				},
 			})
 
@@ -897,6 +899,10 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								commitMessageGitContext={commitMessageGitContext}
 								setCommitMessageGitContext={(value) =>
 									setCachedStateField("commitMessageGitContext", value)
+								}
+								commitMessageProfiles={commitMessageProfiles}
+								setCommitMessageProfiles={(value) =>
+									setCachedStateField("commitMessageProfiles", value)
 								}
 								includeTaskHistoryInEnhance={includeTaskHistoryInEnhance}
 								setIncludeTaskHistoryInEnhance={(value) =>
