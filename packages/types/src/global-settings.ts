@@ -49,6 +49,158 @@ export const defaultCommitMessageGitContextSettings: Required<CommitMessageGitCo
 	recentCommitDiffCount: 1,
 }
 
+export const MAX_COMMIT_MESSAGE_PROFILES = 5
+export const DEFAULT_COMMIT_MESSAGE_PROFILE_ID = "default"
+
+export const commitMessageProfileSchema = z.object({
+	id: z.string().optional(),
+	name: z.string().optional(),
+	prompt: z.string().optional(),
+	apiConfigId: z.string().optional(),
+	gitContext: commitMessageGitContextSchema.optional(),
+})
+
+export const commitMessageProfilesSchema = z.object({
+	activeProfileId: z.string().optional(),
+	profiles: z.array(commitMessageProfileSchema).max(MAX_COMMIT_MESSAGE_PROFILES).optional(),
+})
+
+export type CommitMessageProfileSettings = z.infer<typeof commitMessageProfileSchema>
+export type CommitMessageProfilesSettings = z.infer<typeof commitMessageProfilesSchema>
+
+export type NormalizedCommitMessageProfile = Omit<CommitMessageProfileSettings, "id" | "name" | "gitContext"> & {
+	id: string
+	name: string
+	gitContext: Required<CommitMessageGitContextSettings>
+}
+
+export interface NormalizedCommitMessageProfiles {
+	activeProfileId: string
+	profiles: NormalizedCommitMessageProfile[]
+}
+
+export interface CommitMessageProfileFallbackSettings {
+	prompt?: string
+	apiConfigId?: string
+	gitContext?: CommitMessageGitContextSettings
+}
+
+export function normalizeCommitMessageGitContextSettings(
+	settings?: CommitMessageGitContextSettings,
+): Required<CommitMessageGitContextSettings> {
+	return {
+		...defaultCommitMessageGitContextSettings,
+		...settings,
+		diffContextLines: clampNumberSetting(
+			settings?.diffContextLines,
+			0,
+			20,
+			defaultCommitMessageGitContextSettings.diffContextLines,
+		),
+		recentCommitCount: clampNumberSetting(
+			settings?.recentCommitCount,
+			1,
+			20,
+			defaultCommitMessageGitContextSettings.recentCommitCount,
+		),
+		recentCommitDiffCount: clampNumberSetting(
+			settings?.recentCommitDiffCount,
+			1,
+			5,
+			defaultCommitMessageGitContextSettings.recentCommitDiffCount,
+		),
+	}
+}
+
+export function normalizeCommitMessageProfiles(
+	settings?: CommitMessageProfilesSettings,
+	fallback: CommitMessageProfileFallbackSettings = {},
+): NormalizedCommitMessageProfiles {
+	const sourceProfiles = settings?.profiles?.length
+		? settings.profiles.slice(0, MAX_COMMIT_MESSAGE_PROFILES)
+		: [
+				{
+					id: DEFAULT_COMMIT_MESSAGE_PROFILE_ID,
+					name: "Default",
+					prompt: fallback.prompt,
+					apiConfigId: fallback.apiConfigId,
+					gitContext: fallback.gitContext,
+				},
+			]
+
+	const profiles: NormalizedCommitMessageProfile[] = sourceProfiles.map((profile, index) => ({
+		id: normalizeProfileId(profile.id, index),
+		name: normalizeProfileName(profile.name, index),
+		prompt: profile.prompt,
+		apiConfigId: normalizeOptionalString(profile.apiConfigId),
+		gitContext: normalizeCommitMessageGitContextSettings(profile.gitContext),
+	}))
+	const firstProfile = profiles[0]!
+
+	const activeProfileId = profiles.some((profile) => profile.id === settings?.activeProfileId)
+		? settings!.activeProfileId!
+		: firstProfile.id
+
+	return {
+		activeProfileId,
+		profiles,
+	}
+}
+
+export function getActiveCommitMessageProfile(
+	settings?: CommitMessageProfilesSettings,
+	fallback?: CommitMessageProfileFallbackSettings,
+): NormalizedCommitMessageProfile {
+	const normalized = normalizeCommitMessageProfiles(settings, fallback)
+	return normalized.profiles.find((profile) => profile.id === normalized.activeProfileId) ?? normalized.profiles[0]!
+}
+
+export function createCommitMessageProfileId(): string {
+	return `profile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export function createCommitMessageProfileName(profiles: Array<{ name?: string }>): string {
+	for (let index = profiles.length + 1; index <= MAX_COMMIT_MESSAGE_PROFILES + 1; index++) {
+		const candidate = `Profile ${index}`
+		if (!profiles.some((profile) => profile.name === candidate)) {
+			return candidate
+		}
+	}
+
+	return `Profile ${profiles.length + 1}`
+}
+
+function normalizeProfileId(id: string | undefined, index: number): string {
+	const normalized = normalizeOptionalString(id)
+	if (normalized) {
+		return normalized
+	}
+
+	return index === 0 ? DEFAULT_COMMIT_MESSAGE_PROFILE_ID : `profile-${index + 1}`
+}
+
+function normalizeProfileName(name: string | undefined, index: number): string {
+	const normalized = normalizeOptionalString(name)
+	return normalized || (index === 0 ? "Default" : `Profile ${index + 1}`)
+}
+
+function normalizeOptionalString(value: string | undefined): string | undefined {
+	if (typeof value !== "string") {
+		return undefined
+	}
+
+	const trimmed = value.trim()
+	return trimmed.length > 0 ? trimmed : undefined
+}
+
+function clampNumberSetting(value: number | undefined, min: number, max: number, fallback: number): number {
+	if (typeof value !== "number" || !Number.isFinite(value)) {
+		return fallback
+	}
+
+	return Math.min(Math.max(Math.trunc(value), min), max)
+}
+
 /**
  * Terminal output preview size options for persisted command output.
  *
@@ -261,6 +413,7 @@ export const globalSettingsSchema = z.object({
 
 	commitMessageApiConfigId: z.string().optional(),
 	commitMessageGitContext: commitMessageGitContextSchema.optional(),
+	commitMessageProfiles: commitMessageProfilesSchema.optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>

@@ -110,6 +110,53 @@ new file mode 100644
 		)
 	})
 
+	it("uses the active commit-message profile prompt and API config", async () => {
+		contextProxy.getValue.mockImplementation((key: string) => {
+			switch (key) {
+				case "commitMessageProfiles":
+					return {
+						activeProfileId: "release",
+						profiles: [
+							{
+								id: "default",
+								name: "Default",
+								apiConfigId: "default-profile",
+							},
+							{
+								id: "release",
+								name: "Release",
+								prompt: "Release prompt\n${gitContext}\n${customInstructions}",
+								apiConfigId: "commit-profile",
+							},
+						],
+					}
+				case "commitMessageApiConfigId":
+					return "default-profile"
+				case "listApiConfigMeta":
+					return [{ id: "commit-profile", name: "Commit profile" }]
+				case "customSupportPrompts":
+					return { COMMIT_MESSAGE: "Legacy prompt ${gitContext}" }
+				default:
+					return undefined
+			}
+		})
+		completePrompt.mockResolvedValue("chore(release): prepare notes")
+		const generator = createGenerator()
+
+		await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["CHANGELOG.md"],
+			gitContext: "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+		})
+
+		expect(providerSettingsManager.getProfile).toHaveBeenCalledWith({ id: "commit-profile" })
+		expect(completePrompt).toHaveBeenCalledWith(
+			expect.objectContaining(commitConfig),
+			expect.stringContaining("Release prompt"),
+		)
+		expect(completePrompt.mock.calls[0][1]).not.toContain("Legacy prompt")
+	})
+
 	it("falls back to current API config when the selected profile cannot be loaded", async () => {
 		contextProxy.getValue.mockImplementation((key: string) => {
 			switch (key) {
