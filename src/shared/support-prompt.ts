@@ -244,7 +244,7 @@ Please provide:
 	COMMIT_MESSAGE: {
 		template: `# Conventional Commit Message Generator
 ## System Instructions
-You are an expert Git commit message generator that creates conventional commit messages based on staged changes. Analyze the provided git diff output and generate appropriate conventional commit messages following the specification.
+You are an expert Git commit message generator that creates conventional commit messages based on provided Git changes. Analyze the provided git diff output and generate appropriate conventional commit messages following the specification.
 
 \${customInstructions}
 
@@ -302,7 +302,7 @@ Generate commit messages following this exact structure:
 - **Breaking Changes**: \`BREAKING CHANGE: description\`
 
 ## Analysis Instructions
-When analyzing staged changes:
+When analyzing provided Git changes:
 1. Determine Primary Type based on the nature of changes
 2. Identify Scope from modified directories or modules
 3. Craft Description focusing on the most significant change

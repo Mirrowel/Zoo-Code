@@ -1,3 +1,4 @@
+import * as path from "path"
 import * as vscode from "vscode"
 import { ProviderSettingsManager } from "../../core/config/ProviderSettingsManager"
 import { t } from "../../i18n"
@@ -66,18 +67,21 @@ export class CommitMessageProvider implements vscode.Disposable {
 					try {
 						reportProgress(15, t("common:commitMessage.discoveringFiles"))
 						const resolution = await this.resolveCommitChanges(gitCollector)
-						const gitContextSettings = getCommitMessageGitContextSettings()
 
 						if (resolution.changes.length === 0) {
 							vscode.window.showInformationMessage(t("common:commitMessage.noChanges"))
 							return
 						}
 
-						reportProgress(25, t("common:commitMessage.foundChanges", { count: resolution.changes.length }))
-
 						if (!resolution.usedStaged) {
-							vscode.window.showInformationMessage(t("common:commitMessage.generatingFromUnstaged"))
+							const confirmed = await this.confirmUnstagedGeneration(resolution.changes.length)
+							if (!confirmed) {
+								return
+							}
 						}
+
+						const gitContextSettings = getCommitMessageGitContextSettings()
+						reportProgress(25, t("common:commitMessage.foundChanges", { count: resolution.changes.length }))
 
 						reportProgress(40, t("common:commitMessage.gettingContext"))
 						const gitContextResult = await gitCollector.collectContext(
@@ -118,6 +122,17 @@ export class CommitMessageProvider implements vscode.Disposable {
 		}
 	}
 
+	private async confirmUnstagedGeneration(changeCount: number): Promise<boolean> {
+		const confirmAction = t("common:commitMessage.confirmUnstagedAction")
+		const selection = await vscode.window.showWarningMessage(
+			t("common:commitMessage.confirmUnstaged", { count: changeCount }),
+			{ modal: true },
+			confirmAction,
+		)
+
+		return selection === confirmAction
+	}
+
 	private async resolveCommitChanges(gitCollector: GitContextCollector): Promise<{
 		changes: GitChange[]
 		files: string[]
@@ -154,13 +169,21 @@ export class CommitMessageProvider implements vscode.Disposable {
 				return null
 			}
 
-			for (const repo of gitApi.repositories ?? []) {
-				if (repo.rootUri && workspacePath.startsWith(repo.rootUri.fsPath)) {
-					return repo
-				}
+			const repositories = gitApi.repositories ?? []
+			const matchingRepositories = repositories
+				.filter((repo: VscGenerationRequest) =>
+					repo.rootUri ? isPathWithinRepository(workspacePath, repo.rootUri.fsPath) : false,
+				)
+				.sort(
+					(a: VscGenerationRequest, b: VscGenerationRequest) =>
+						(b.rootUri?.fsPath.length ?? 0) - (a.rootUri?.fsPath.length ?? 0),
+				)
+
+			if (matchingRepositories.length > 0) {
+				return matchingRepositories[0]
 			}
 
-			return gitApi.repositories[0] ?? null
+			return repositories[0] ?? null
 		} catch (error) {
 			return null
 		}
@@ -180,4 +203,9 @@ export class CommitMessageProvider implements vscode.Disposable {
 	}
 
 	public dispose(): void {}
+}
+
+export function isPathWithinRepository(targetPath: string, repositoryPath: string): boolean {
+	const relativePath = path.relative(path.resolve(repositoryPath), path.resolve(targetPath))
+	return relativePath === "" || (!!relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath))
 }
