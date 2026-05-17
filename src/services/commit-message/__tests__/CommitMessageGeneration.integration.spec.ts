@@ -49,7 +49,8 @@ describe("commit message generation flow", () => {
 
 			const gitContext = await new GitContextCollector(tempRoot).collect({
 				staged: false,
-				includeRepoContext: false,
+				includeBranch: false,
+				recentCommits: { include: false },
 			})
 			const completePrompt = vi.fn().mockResolvedValue("feat(src): add new module")
 			const generator = new CommitMessageGenerator(providerSettingsManager as any, {

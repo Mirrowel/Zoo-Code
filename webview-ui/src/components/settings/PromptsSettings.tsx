@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from "react"
 import { VSCodeTextArea, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
+import type { CommitMessageGitContextSettings } from "@roo-code/types"
 
 import { supportPrompt, SupportPromptType } from "@roo/support-prompt"
 
@@ -26,6 +27,8 @@ interface PromptsSettingsProps {
 	setCustomSupportPrompts: (prompts: Record<string, string | undefined>) => void
 	commitMessageApiConfigId?: string
 	setCommitMessageApiConfigId?: (value: string) => void
+	commitMessageGitContext?: CommitMessageGitContextSettings
+	setCommitMessageGitContext?: (value: CommitMessageGitContextSettings) => void
 	includeTaskHistoryInEnhance?: boolean
 	setIncludeTaskHistoryInEnhance?: (value: boolean) => void
 }
@@ -35,6 +38,8 @@ const PromptsSettings = ({
 	setCustomSupportPrompts,
 	commitMessageApiConfigId,
 	setCommitMessageApiConfigId,
+	commitMessageGitContext,
+	setCommitMessageGitContext,
 	includeTaskHistoryInEnhance: propsIncludeTaskHistoryInEnhance,
 	setIncludeTaskHistoryInEnhance: propsSetIncludeTaskHistoryInEnhance,
 }: PromptsSettingsProps) => {
@@ -255,6 +260,8 @@ const PromptsSettings = ({
 							listApiConfigMeta={listApiConfigMeta || []}
 							commitMessageApiConfigId={commitMessageApiConfigId}
 							setCommitMessageApiConfigId={setCommitMessageApiConfigId ?? (() => {})}
+							commitMessageGitContext={commitMessageGitContext}
+							setCommitMessageGitContext={setCommitMessageGitContext ?? (() => {})}
 						/>
 					)}
 				</div>

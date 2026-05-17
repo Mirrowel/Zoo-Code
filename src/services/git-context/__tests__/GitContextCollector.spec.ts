@@ -12,6 +12,7 @@ vi.mock("child_process", () => ({
 
 const mockSpawn = vi.mocked(spawn)
 const workspaceRoot = path.resolve("/repo")
+const requiredContextOnly = { includeBranch: false, recentCommits: { include: false } }
 
 function mockGitCommand(stdout: string, stderr = "", code = 0) {
 	mockSpawn.mockImplementationOnce((() => {
@@ -95,7 +96,7 @@ describe("GitContextCollector", () => {
 		const collector = new GitContextCollector(workspaceRoot)
 		const context = await collector.getContext(
 			[{ filePath: path.join(workspaceRoot, "package-lock.json"), status: "M", staged: true }],
-			{ staged: true, includeRepoContext: false },
+			{ staged: true, ...requiredContextOnly },
 		)
 
 		expect(context).toContain("diff --git a/package-lock.json b/package-lock.json")
@@ -108,13 +109,34 @@ describe("GitContextCollector", () => {
 		mockGitCommand("diff --git a/src/file.ts b/src/file.ts\n")
 
 		const collector = new GitContextCollector(workspaceRoot)
-		const result = await collector.collect({ staged: true, includeRepoContext: false })
+		const result = await collector.collect({ staged: true, ...requiredContextOnly })
 
 		expect(result.changes).toEqual([
 			{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true },
 		])
 		expect(result.context).toContain("diff --git a/src/file.ts b/src/file.ts")
 		expect(result.warnings).toEqual([])
+	})
+
+	it("uses requested diff context lines and includes diff stats", async () => {
+		mockGitCommand("src/file.ts | 3 ++-\n")
+		mockGitCommand("2\t1\tsrc/file.ts\n")
+		mockGitCommand("diff --git a/src/file.ts b/src/file.ts\n")
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const context = await collector.getContext(
+			[{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }],
+			{ staged: true, ...requiredContextOnly, diff: { contextLines: 0, includeStats: true } },
+		)
+
+		expect(mockSpawn).toHaveBeenNthCalledWith(
+			3,
+			"git",
+			["diff", "--cached", "--unified=0", "--", "src/file.ts"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(context).toContain("### Diff Stats")
+		expect(context).toContain("src/file.ts | 3 ++-")
 	})
 
 	it("includes full new-file diffs for untracked text files", async () => {
@@ -127,7 +149,7 @@ describe("GitContextCollector", () => {
 			const collector = new GitContextCollector(tempRoot)
 			const context = await collector.getContext([{ filePath, status: "?", staged: false }], {
 				staged: false,
-				includeRepoContext: false,
+				...requiredContextOnly,
 			})
 
 			expect(mockSpawn).not.toHaveBeenCalled()
@@ -149,7 +171,7 @@ describe("GitContextCollector", () => {
 			const collector = new GitContextCollector(tempRoot)
 			const context = await collector.getContext([{ filePath, status: "?", staged: false }], {
 				staged: false,
-				includeRepoContext: false,
+				...requiredContextOnly,
 			})
 
 			expect(context).toContain("Binary file added: image.bin")
@@ -169,7 +191,7 @@ describe("GitContextCollector", () => {
 		await expect(
 			collector.getContext([{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }], {
 				staged: true,
-				includeRepoContext: false,
+				...requiredContextOnly,
 			}),
 		).rejects.toThrow("fatal: bad revision")
 	})
@@ -183,7 +205,7 @@ describe("GitContextCollector", () => {
 		const collector = new GitContextCollector(workspaceRoot)
 		const result = await collector.collectContext(
 			[{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true }],
-			{ staged: true, includeRepoContext: true },
+			{ staged: true, includeBranch: true, recentCommits: { include: true } },
 		)
 
 		expect(result.warnings).toEqual([

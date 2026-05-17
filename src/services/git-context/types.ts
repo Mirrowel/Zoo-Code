@@ -20,7 +20,23 @@ export interface GitContextOptions {
 	staged: boolean
 }
 
+export interface GitDiffContextOptions {
+	contextLines?: number
+	includeStats?: boolean
+}
+
+export interface GitRecentCommitContextOptions {
+	include?: boolean
+	count?: number
+	includeBodies?: boolean
+	includeStats?: boolean
+	includeDiffs?: boolean
+	diffCount?: number
+}
+
 export interface GitContextCollectorOptions extends GitContextOptions {
 	onProgress?: (percentage: number) => void
-	includeRepoContext?: boolean
+	diff?: GitDiffContextOptions
+	includeBranch?: boolean
+	recentCommits?: GitRecentCommitContextOptions
 }
