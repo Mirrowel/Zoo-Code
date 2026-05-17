@@ -1,6 +1,7 @@
 import * as path from "path"
-import { execFile } from "child_process"
-import { GitProgressOptions, GitChange, GitOptions, GitStatus } from "./types"
+import { promises as fs } from "fs"
+import { spawn } from "child_process"
+import { GitProgressOptions, GitChange, GitContextResult, GitOptions, GitStatus } from "./types"
 
 export type { GitChange, GitOptions, GitProgressOptions } from "./types"
 
@@ -18,23 +19,26 @@ export class GitExtensionService {
 
 	public async spawnGitWithArgs(args: string[]): Promise<string> {
 		return new Promise((resolve, reject) => {
-			execFile(
-				"git",
-				args,
-				{
-					cwd: this.workspaceRoot,
-					encoding: "utf8",
-					maxBuffer: 20 * 1024 * 1024,
-				},
-				(error, stdout, stderr) => {
-					if (error) {
-						reject(new Error(`Git command failed: ${stderr || error.message}`))
-						return
-					}
+			const child = spawn("git", args, {
+				cwd: this.workspaceRoot,
+				stdio: ["ignore", "pipe", "pipe"],
+			})
+			let stdout = ""
+			let stderr = ""
 
+			child.stdout.setEncoding("utf8")
+			child.stderr.setEncoding("utf8")
+			child.stdout.on("data", (chunk) => (stdout += chunk))
+			child.stderr.on("data", (chunk) => (stderr += chunk))
+			child.on("error", reject)
+			child.on("close", (code) => {
+				if (code === 0) {
 					resolve(stdout)
-				},
-			)
+					return
+				}
+
+				reject(new Error(`Git command failed (${args.join(" ")}): ${stderr.trim() || `exit code ${code}`}`))
+			})
 		})
 	}
 
@@ -43,7 +47,8 @@ export class GitExtensionService {
 			return ""
 		}
 
-		const diffableChanges = changes.filter((change) => change.status !== "?")
+		const binaryChanges = await this.findBinaryChanges(changes, options.staged)
+		const diffableChanges = changes.filter((change) => change.status !== "?" && !binaryChanges.has(change.filePath))
 		const untrackedFiles = changes.filter((change) => change.status === "?")
 		const parts: string[] = []
 
@@ -56,11 +61,104 @@ export class GitExtensionService {
 		}
 
 		if (untrackedFiles.length > 0) {
-			parts.push(untrackedFiles.map((change) => `New untracked file: ${change.filePath}`).join("\n"))
+			parts.push(await this.getUntrackedFileDiffs(untrackedFiles))
+		}
+
+		if (binaryChanges.size > 0) {
+			parts.push(
+				changes
+					.filter((change) => binaryChanges.has(change.filePath))
+					.map(
+						(change) =>
+							`Binary file ${this.getReadableStatus(change.status).toLowerCase()}: ${this.getRelativePath(change.filePath)}`,
+					)
+					.join("\n"),
+			)
 		}
 
 		options.onProgress?.(100)
 		return parts.join("\n")
+	}
+
+	private async findBinaryChanges(changes: GitChange[], staged: boolean): Promise<Set<string>> {
+		const binaryFiles = new Set<string>()
+
+		for (const change of changes) {
+			if (change.status === "?") {
+				continue
+			}
+
+			const args = this.buildNumstatArgs(staged, change)
+			const output = await this.spawnGitWithArgs(args)
+			if (output.includes("-\t-\t")) {
+				binaryFiles.add(change.filePath)
+			}
+		}
+
+		return binaryFiles
+	}
+
+	private buildNumstatArgs(staged: boolean, change: GitChange): string[] {
+		const args = staged ? ["diff", "--cached", "--numstat"] : ["diff", "--numstat"]
+		return [...args, "--", this.getRelativePath(change.filePath)]
+	}
+
+	private async isProbablyBinaryFile(filePath: string): Promise<boolean> {
+		const fileHandle = await fs.open(filePath, "r")
+		try {
+			const buffer = Buffer.alloc(8000)
+			const { bytesRead } = await fileHandle.read(buffer, 0, buffer.length, 0)
+			return buffer.subarray(0, bytesRead).includes(0)
+		} finally {
+			await fileHandle.close()
+		}
+	}
+
+	private async getUntrackedFileDiffs(changes: GitChange[]): Promise<string> {
+		const diffs: string[] = []
+
+		for (const change of changes) {
+			if (await this.isProbablyBinaryFile(change.filePath)) {
+				diffs.push(`Binary file added: ${this.getRelativePath(change.filePath)}`)
+				continue
+			}
+
+			diffs.push(await this.createNewFileDiff(change.filePath))
+		}
+
+		return diffs.join("\n")
+	}
+
+	private async createNewFileDiff(filePath: string): Promise<string> {
+		const relativePath = this.getRelativePath(filePath)
+		const content = await fs.readFile(filePath, "utf8")
+		const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+
+		if (normalizedContent.length === 0) {
+			return [
+				`diff --git a/${relativePath} b/${relativePath}`,
+				"new file mode 100644",
+				"--- /dev/null",
+				`+++ b/${relativePath}`,
+			].join("\n")
+		}
+
+		const hasTrailingNewline = normalizedContent.endsWith("\n")
+		const lines = (hasTrailingNewline ? normalizedContent.slice(0, -1) : normalizedContent).split("\n")
+		const diffLines = [
+			`diff --git a/${relativePath} b/${relativePath}`,
+			"new file mode 100644",
+			"--- /dev/null",
+			`+++ b/${relativePath}`,
+			`@@ -0,0 +1,${lines.length} @@`,
+			...lines.map((line) => `+${line}`),
+		]
+
+		if (!hasTrailingNewline) {
+			diffLines.push("\\ No newline at end of file")
+		}
+
+		return diffLines.join("\n")
 	}
 
 	private async getStatus(options: GitOptions): Promise<string> {
@@ -77,13 +175,14 @@ export class GitExtensionService {
 		return this.spawnGitWithArgs(["log", "--oneline", `-${count}`])
 	}
 
-	public async getCommitContext(
+	public async getCommitContextResult(
 		changes: GitChange[],
 		options: GitProgressOptions,
 		specificFiles?: string[],
-	): Promise<string> {
+	): Promise<GitContextResult> {
 		const { staged, includeRepoContext = true } = options
 		let context = "## Git Context for Commit Message Generation\n\n"
+		const warnings: string[] = []
 
 		const targetChanges = this.filterChanges(changes, specificFiles)
 		const fileInfo = specificFiles ? ` (${specificFiles.length} selected files)` : ""
@@ -91,13 +190,8 @@ export class GitExtensionService {
 		const allUnstaged = targetChanges.every((change) => !change.staged)
 		const changeDescriptor = allStaged ? "Staged" : allUnstaged ? "Unstaged" : "Selected"
 
-		try {
-			const diff = await this.getDiffForChanges(targetChanges, options)
-			context += `### Full Diff of ${changeDescriptor} Changes${fileInfo}\n\`\`\`diff\n${diff}\n\`\`\`\n\n`
-		} catch (error) {
-			const changeType = staged ? "Staged" : "Unstaged"
-			context += `### Full Diff of ${changeType} Changes${fileInfo}\n\`\`\`diff\n(No diff available)\n\`\`\`\n\n`
-		}
+		const diff = await this.getDiffForChanges(targetChanges, options)
+		context += `### Full Diff of ${changeDescriptor} Changes${fileInfo}\n\`\`\`diff\n${diff}\n\`\`\`\n\n`
 
 		if (targetChanges.length > 0) {
 			const summaryLines = targetChanges.map((change) => {
@@ -126,17 +220,37 @@ export class GitExtensionService {
 				if (currentBranch) {
 					context += "**Current branch:** `" + currentBranch.trim() + "`\n\n"
 				}
-			} catch (error) {}
+			} catch (error) {
+				warnings.push(`Current branch unavailable: ${this.getErrorMessage(error)}`)
+			}
 
 			try {
 				const recentCommits = await this.getRecentCommits()
 				if (recentCommits) {
 					context += "**Recent commits:**\n```\n" + recentCommits + "\n```\n"
 				}
-			} catch (error) {}
+			} catch (error) {
+				warnings.push(`Recent commits unavailable: ${this.getErrorMessage(error)}`)
+			}
 		}
 
-		return context
+		if (warnings.length > 0) {
+			context += "\n### Context Warnings\n```\n" + warnings.join("\n") + "\n```\n"
+		}
+
+		return { context, warnings }
+	}
+
+	public async getCommitContext(
+		changes: GitChange[],
+		options: GitProgressOptions,
+		specificFiles?: string[],
+	): Promise<string> {
+		return (await this.getCommitContextResult(changes, options, specificFiles)).context
+	}
+
+	private getErrorMessage(error: unknown): string {
+		return error instanceof Error ? error.message : String(error)
 	}
 
 	private parseNameStatus(output: string, staged: boolean): GitChange[] {

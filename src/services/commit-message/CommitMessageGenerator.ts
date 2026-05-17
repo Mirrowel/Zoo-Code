@@ -130,7 +130,12 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 				if (providerSettings.apiProvider) {
 					configToUse = providerSettings
 				}
-			} catch (error) {}
+			} catch (error) {
+				console.warn(
+					`Failed to load commit message API profile ${commitMessageApiConfigId}; falling back to current API configuration`,
+					error,
+				)
+			}
 		}
 
 		const filteredPrompts = Object.fromEntries(

@@ -7,6 +7,11 @@ export interface GitChange {
 	staged: boolean
 }
 
+export interface GitContextResult {
+	context: string
+	warnings: string[]
+}
+
 export interface GitOptions {
 	staged: boolean
 }
