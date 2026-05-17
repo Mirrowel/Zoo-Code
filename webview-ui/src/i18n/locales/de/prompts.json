@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Commit-Nachrichten-Generierung",
-				"description": "Generieren Sie beschreibende Commit-Nachrichten basierend auf Ihren staged Git-Änderungen. Passen Sie den Prompt an, um Nachrichten zu generieren, die den Best Practices Ihres Repositories entsprechen."
+				"description": "Generieren Sie beschreibende Commit-Nachrichten basierend auf Ihren Git-Änderungen. Passen Sie den Prompt an, um Nachrichten zu generieren, die den Best Practices Ihres Repositories entsprechen."
 			}
 		},
 		"commitMessage": {

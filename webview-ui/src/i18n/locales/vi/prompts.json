@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Tạo thông báo commit",
-				"description": "Tạo thông báo commit mô tả dựa trên các thay đổi git đã staged. Tùy chỉnh lời nhắc để tạo thông báo tuân thủ các phương pháp tốt nhất của kho lưu trữ."
+				"description": "Tạo thông báo commit mô tả dựa trên các thay đổi Git. Tùy chỉnh lời nhắc để tạo thông báo tuân thủ các phương pháp tốt nhất của kho lưu trữ."
 			}
 		},
 		"commitMessage": {

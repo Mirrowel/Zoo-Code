@@ -141,7 +141,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "提交訊息生成",
-				"description": "根據已暫存的 Git 變更生成描述性提交訊息。自訂提示詞以生成符合儲存庫最佳實踐的訊息。"
+				"description": "根據 Git 變更生成描述性提交訊息。自訂提示詞以生成符合儲存庫最佳實踐的訊息。"
 			}
 		},
 		"commitMessage": {

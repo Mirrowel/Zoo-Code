@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Commitbericht genereren",
-				"description": "Genereer beschrijvende commitberichten op basis van je gestagede git-wijzigingen. Pas de prompt aan om berichten te genereren die de beste praktijken van je repository volgen."
+				"description": "Genereer beschrijvende commitberichten op basis van je Git-wijzigingen. Pas de prompt aan om berichten te genereren die de beste praktijken van je repository volgen."
 			}
 		},
 		"commitMessage": {

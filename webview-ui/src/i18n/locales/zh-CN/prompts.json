@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "提交信息生成",
-				"description": "根据已暂存的 Git 更改生成描述性提交信息。自定义提示词以生成符合仓库最佳实践的信息。"
+				"description": "根据 Git 更改生成描述性提交信息。自定义提示词以生成符合仓库最佳实践的信息。"
 			}
 		},
 		"commitMessage": {

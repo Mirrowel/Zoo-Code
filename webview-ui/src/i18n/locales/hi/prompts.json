@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Commit Message जनरेशन",
-				"description": "अपने staged git changes के आधार पर वर्णनात्मक commit messages उत्पन्न करें। अपने रिपॉज़िटरी की सर्वोत्तम प्रथाओं का पालन करने वाले messages उत्पन्न करने के लिए प्रॉम्प्ट को अनुकूलित करें।"
+				"description": "अपने Git changes के आधार पर वर्णनात्मक commit messages उत्पन्न करें। अपने रिपॉज़िटरी की सर्वोत्तम प्रथाओं का पालन करने वाले messages उत्पन्न करने के लिए प्रॉम्प्ट को अनुकूलित करें।"
 			}
 		},
 		"commitMessage": {

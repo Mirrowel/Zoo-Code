@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Generazione messaggio di commit",
-				"description": "Genera messaggi di commit descrittivi basati sulle modifiche git in staging. Personalizza il prompt per generare messaggi che seguono le migliori pratiche del tuo repository."
+				"description": "Genera messaggi di commit descrittivi basati sulle modifiche Git. Personalizza il prompt per generare messaggi che seguono le migliori pratiche del tuo repository."
 			}
 		},
 		"commitMessage": {

@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Generació de missatges de commit",
-				"description": "Genereu missatges de commit descriptius basats en els vostres canvis de git preparats. Personalitzeu el prompt per generar missatges que segueixin les millors pràctiques del vostre repositori."
+				"description": "Genereu missatges de commit descriptius basats en els vostres canvis de Git. Personalitzeu el prompt per generar missatges que segueixin les millors pràctiques del vostre repositori."
 			}
 		},
 		"commitMessage": {
