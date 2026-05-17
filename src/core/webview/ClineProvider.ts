@@ -2398,6 +2398,7 @@ export class ClineProvider
 			enhancementApiConfigId,
 			commitMessageApiConfigId,
 			commitMessageGitContext,
+			commitMessageProfiles,
 			autoApprovalEnabled: autoApprovalEnabled ?? false,
 			customModes,
 			experiments: experiments ?? experimentDefault,

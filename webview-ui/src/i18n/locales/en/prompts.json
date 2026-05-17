@@ -179,7 +179,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Commit Message Generation",
-				"description": "Generate descriptive commit messages based on your staged git changes. Customize the prompt to generate messages that follow your repository's best practices."
+				"description": "Generate descriptive commit messages based on your Git changes. Customize the prompt to generate messages that follow your repository's best practices."
 			}
 		}
 	},
