@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: コミットメッセージの生成に失敗しました: {{errorMessage}}",
 		"contextWarnings": "Zoo: Gitコンテキスト警告: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: ステージされていない変更を使用してメッセージを生成中",
+		"confirmUnstaged": "ステージされた変更が見つかりません。代わりに{{count}}件のステージされていない/トラックされていない変更からコミットメッセージを生成しますか？",
+		"confirmUnstagedAction": "ステージされていない変更から生成",
 		"activationFailed": "Zoo: メッセージジェネレーターの有効化に失敗しました: {{error}}",
 		"providerRegistered": "Zoo: コミットメッセージプロバイダーが登録されました",
 		"initializing": "初期化中...",

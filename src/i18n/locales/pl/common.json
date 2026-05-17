@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Nie udało się wygenerować wiadomości commitu: {{errorMessage}}",
 		"contextWarnings": "Zoo: Ostrzeżenie kontekstu Git: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Generowanie wiadomości na podstawie niezatwierdzonych zmian",
+		"confirmUnstaged": "Nie znaleziono zatwierdzonych zmian. Wygenerować wiadomość commitu na podstawie {{count}} niezatwierdzonych/nieśledzonych zmian?",
+		"confirmUnstagedAction": "Generuj na podstawie niezatwierdzonych zmian",
 		"activationFailed": "Zoo: Nie udało się aktywować generatora wiadomości: {{error}}",
 		"providerRegistered": "Zoo: Dostawca wiadomości commitów zarejestrowany",
 		"initializing": "Inicjalizacja...",

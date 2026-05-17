@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Commit Mesajı Oluşturma",
-				"description": "Staged git değişikliklerinize göre açıklayıcı commit mesajları oluşturun. Deposunuzun en iyi uygulamalarına uygun mesajlar oluşturmak için promptu özelleştirin."
+				"description": "Git değişikliklerinize göre açıklayıcı commit mesajları oluşturun. Deposunuzun en iyi uygulamalarına uygun mesajlar oluşturmak için promptu özelleştirin."
 			}
 		},
 		"commitMessage": {

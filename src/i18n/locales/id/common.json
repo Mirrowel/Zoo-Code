@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Gagal membuat pesan commit: {{errorMessage}}",
 		"contextWarnings": "Zoo: Peringatan konteks Git: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Membuat pesan menggunakan perubahan yang belum di-stage",
+		"confirmUnstaged": "Tidak ada perubahan staged yang ditemukan. Buat pesan commit dari {{count}} perubahan unstaged/untracked sebagai gantinya?",
+		"confirmUnstagedAction": "Buat dari perubahan unstaged",
 		"activationFailed": "Zoo: Gagal mengaktifkan generator pesan: {{error}}",
 		"providerRegistered": "Zoo: Penyedia pesan commit terdaftar",
 		"initializing": "Menginisialisasi...",

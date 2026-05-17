@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: कमिट मैसेज बनाने में विफल: {{errorMessage}}",
 		"contextWarnings": "Zoo: Git संदर्भ चेतावनी: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: अनस्टेज्ड बदलावों का उपयोग करके मैसेज बनाया जा रहा है",
+		"confirmUnstaged": "कोई स्टेज्ड बदलाव नहीं मिले। इसके बजाय {{count}} अनस्टेज्ड/अनट्रैक्ड बदलावों से कमिट मैसेज बनाएं?",
+		"confirmUnstagedAction": "अनस्टेज्ड बदलावों से बनाएं",
 		"activationFailed": "Zoo: मैसेज जनरेटर सक्रिय करने में विफल: {{error}}",
 		"providerRegistered": "Zoo: कमिट मैसेज प्रदाता पंजीकृत किया गया",
 		"initializing": "प्रारंभ हो रहा है...",

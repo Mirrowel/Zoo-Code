@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Commit mesajı oluşturulamadı: {{errorMessage}}",
 		"contextWarnings": "Zoo: Git bağlam uyarısı: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: İşlenmemiş değişiklikler kullanılarak mesaj oluşturuluyor",
+		"confirmUnstaged": "İşlenmiş değişiklik bulunamadı. {{count}} işlenmemiş/izlenmeyen değişiklikten commit mesajı oluşturulsun mu?",
+		"confirmUnstagedAction": "İşlenmemiş değişikliklerden oluştur",
 		"activationFailed": "Zoo: Mesaj üreteci etkinleştirilemedi: {{error}}",
 		"providerRegistered": "Zoo: Commit mesajı sağlayıcısı kaydedildi",
 		"initializing": "Başlatılıyor...",

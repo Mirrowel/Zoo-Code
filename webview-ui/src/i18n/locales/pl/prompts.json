@@ -142,7 +142,7 @@
 			},
 			"COMMIT_MESSAGE": {
 				"label": "Generowanie wiadomości commitów",
-				"description": "Generuj opisowe wiadomości commitów na podstawie zatwierdzonych zmian git. Dostosuj prompt, aby generować wiadomości zgodne z najlepszymi praktykami Twojego repozytorium."
+				"description": "Generuj opisowe wiadomości commitów na podstawie zmian Git. Dostosuj prompt, aby generować wiadomości zgodne z najlepszymi praktykami Twojego repozytorium."
 			}
 		},
 		"commitMessage": {

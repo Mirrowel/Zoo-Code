@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo：產生提交訊息失敗：{{errorMessage}}",
 		"contextWarnings": "Zoo：Git 上下文警告：{{warnings}}",
 		"generatingFromUnstaged": "Zoo：使用未暫存的變更產生訊息",
+		"confirmUnstaged": "找不到已暫存的變更。是否從 {{count}} 個未暫存/未追蹤的變更產生提交訊息？",
+		"confirmUnstagedAction": "從未暫存的變更產生",
 		"activationFailed": "Zoo：啟用訊息產生器失敗：{{error}}",
 		"providerRegistered": "Zoo：提交訊息提供者已註冊",
 		"initializing": "正在初始化...",

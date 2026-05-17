@@ -273,6 +273,8 @@
 		"generationFailed": "Zoo: Fehler beim Generieren der Commit-Nachricht: {{errorMessage}}",
 		"contextWarnings": "Zoo: Git-Kontextwarnung: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Nachricht wird aus nicht gestagten Änderungen generiert",
+		"confirmUnstaged": "Keine gestagten Änderungen gefunden. Soll eine Commit-Nachricht aus {{count}} nicht gestagten/nicht verfolgten Änderungen generiert werden?",
+		"confirmUnstagedAction": "Aus nicht gestagten Änderungen generieren",
 		"activationFailed": "Zoo: Fehler beim Aktivieren des Nachrichtengenerators: {{error}}",
 		"providerRegistered": "Zoo: Commit-Nachrichtenanbieter registriert",
 		"initializing": "Initialisierung...",

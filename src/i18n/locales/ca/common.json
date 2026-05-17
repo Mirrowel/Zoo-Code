@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Error en generar el missatge de commit: {{errorMessage}}",
 		"contextWarnings": "Zoo: Avís del context de Git: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Generant missatge amb els canvis no preparats",
+		"confirmUnstaged": "No s'han trobat canvis preparats. Vols generar un missatge de commit amb {{count}} canvis no preparats/no rastrejats?",
+		"confirmUnstagedAction": "Generar amb canvis no preparats",
 		"activationFailed": "Zoo: Error en activar el generador de missatges: {{error}}",
 		"providerRegistered": "Zoo: Proveïdor de missatges de commit registrat",
 		"initializing": "Inicialitzant...",

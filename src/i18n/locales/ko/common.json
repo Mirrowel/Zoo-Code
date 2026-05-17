@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: 커밋 메시지 생성 실패: {{errorMessage}}",
 		"contextWarnings": "Zoo: Git 컨텍스트 경고: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: 스테이징되지 않은 변경 사항으로 메시지 생성 중",
+		"confirmUnstaged": "스테이징된 변경 사항이 없습니다. {{count}}개의 스테이징되지 않은/추적되지 않은 변경 사항으로 커밋 메시지를 생성하시겠습니까?",
+		"confirmUnstagedAction": "스테이징되지 않은 변경 사항에서 생성",
 		"activationFailed": "Zoo: 메시지 생성기 활성화 실패: {{error}}",
 		"providerRegistered": "Zoo: 커밋 메시지 제공자 등록됨",
 		"initializing": "초기화 중...",

@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo : Erreur lors de la génération du message de commit : {{errorMessage}}",
 		"contextWarnings": "Zoo : Avertissement du contexte Git : {{warnings}}",
 		"generatingFromUnstaged": "Zoo : Génération du message à partir des changements non indexés",
+		"confirmUnstaged": "Aucun changement indexé trouvé. Générer un message de commit à partir de {{count}} changements non indexés/non suivis ?",
+		"confirmUnstagedAction": "Générer à partir des changements non indexés",
 		"activationFailed": "Zoo : Erreur lors de l'activation du générateur de messages : {{error}}",
 		"providerRegistered": "Zoo : Fournisseur de messages de commit enregistré",
 		"initializing": "Initialisation...",

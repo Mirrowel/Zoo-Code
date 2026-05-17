@@ -283,6 +283,8 @@
 		"generationFailed": "Zoo：生成提交消息失败：{{errorMessage}}",
 		"contextWarnings": "Zoo：Git 上下文警告：{{warnings}}",
 		"generatingFromUnstaged": "Zoo：使用未暂存的更改生成消息",
+		"confirmUnstaged": "未找到已暂存的更改。是否从 {{count}} 个未暂存/未跟踪的更改生成提交消息？",
+		"confirmUnstagedAction": "从未暂存的更改生成",
 		"activationFailed": "Zoo：激活消息生成器失败：{{error}}",
 		"providerRegistered": "Zoo：提交消息提供者已注册",
 		"initializing": "正在初始化...",

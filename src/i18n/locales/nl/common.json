@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Genereren van commitbericht mislukt: {{errorMessage}}",
 		"contextWarnings": "Zoo: Git-contextwaarschuwing: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Bericht genereren met niet-geünstagede wijzigingen",
+		"confirmUnstaged": "Geen gestagete wijzigingen gevonden. Wil je in plaats daarvan een commitbericht genereren op basis van {{count}} niet-gestagete/ongetraceerde wijzigingen?",
+		"confirmUnstagedAction": "Genereren vanuit niet-gestagete wijzigingen",
 		"activationFailed": "Zoo: Activeren van berichtgenerator mislukt: {{error}}",
 		"providerRegistered": "Zoo: Commitbericht-provider geregistreerd",
 		"initializing": "Initialiseren...",

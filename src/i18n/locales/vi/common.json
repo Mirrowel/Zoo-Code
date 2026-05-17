@@ -285,6 +285,8 @@
 		"generationFailed": "Zoo: Không thể tạo thông điệp commit: {{errorMessage}}",
 		"contextWarnings": "Zoo: Cảnh báo ngữ cảnh Git: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Đang tạo thông điệp từ các thay đổi chưa lưu",
+		"confirmUnstaged": "Không tìm thấy thay đổi đã lưu. Tạo thông điệp commit từ {{count}} thay đổi chưa lưu/chưa theo dõi?",
+		"confirmUnstagedAction": "Tạo từ thay đổi chưa lưu",
 		"activationFailed": "Zoo: Không thể kích hoạt trình tạo thông điệp: {{error}}",
 		"providerRegistered": "Zoo: Nhà cung cấp thông điệp commit đã được đăng ký",
 		"initializing": "Đang khởi tạo...",

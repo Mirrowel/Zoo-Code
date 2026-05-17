@@ -278,6 +278,8 @@
 		"generationFailed": "Zoo: Generazione messaggio commit fallita: {{errorMessage}}",
 		"contextWarnings": "Zoo: Avviso contesto Git: {{warnings}}",
 		"generatingFromUnstaged": "Zoo: Generazione messaggio utilizzando le modifiche non in stage",
+		"confirmUnstaged": "Nessuna modifica in stage trovata. Generare un messaggio commit da {{count}} modifiche unstaged/untracked invece?",
+		"confirmUnstagedAction": "Genera da modifiche unstaged",
 		"activationFailed": "Zoo: Attivazione generatore messaggi fallita: {{error}}",
 		"providerRegistered": "Zoo: Provider messaggi commit registrato",
 		"initializing": "Inizializzazione in corso...",
