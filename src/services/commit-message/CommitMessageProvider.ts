@@ -5,6 +5,7 @@ import { Package } from "../../shared/package"
 import { GitChange, GitContextCollector } from "../git-context"
 
 import { CommitMessageGenerator } from "./CommitMessageGenerator"
+import { getCommitMessageGitContextSettings, toGitContextCollectorOptions } from "./gitContextSettings"
 
 interface VscGenerationRequest {
 	inputBox: { value: string }
@@ -65,6 +66,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 					try {
 						reportProgress(15, t("common:commitMessage.discoveringFiles"))
 						const resolution = await this.resolveCommitChanges(gitCollector)
+						const gitContextSettings = getCommitMessageGitContextSettings()
 
 						if (resolution.changes.length === 0) {
 							vscode.window.showInformationMessage(t("common:commitMessage.noChanges"))
@@ -80,7 +82,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 						reportProgress(40, t("common:commitMessage.gettingContext"))
 						const gitContextResult = await gitCollector.collectContext(
 							resolution.changes,
-							{ staged: resolution.usedStaged, includeRepoContext: true },
+							toGitContextCollectorOptions(resolution.usedStaged, gitContextSettings),
 							resolution.files,
 						)
 						if (gitContextResult.warnings.length > 0) {

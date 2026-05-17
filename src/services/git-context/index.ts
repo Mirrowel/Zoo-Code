@@ -3,7 +3,9 @@ export type {
 	GitChange,
 	GitContextCollection,
 	GitContextCollectorOptions,
+	GitDiffContextOptions,
 	GitContextOptions,
+	GitRecentCommitContextOptions,
 	GitContextResult,
 	GitStatus,
 } from "./types"

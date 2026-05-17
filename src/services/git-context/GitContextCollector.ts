@@ -5,7 +5,9 @@ import {
 	GitContextCollection,
 	GitContextCollectorOptions,
 	GitChange,
+	GitDiffContextOptions,
 	GitContextOptions,
+	GitRecentCommitContextOptions,
 	GitContextResult,
 	GitStatus,
 } from "./types"
@@ -14,9 +16,14 @@ export type {
 	GitChange,
 	GitContextCollection,
 	GitContextCollectorOptions,
+	GitDiffContextOptions,
 	GitContextOptions,
+	GitRecentCommitContextOptions,
 	GitContextResult,
 } from "./types"
+
+const DEFAULT_RECENT_COMMIT_COUNT = 5
+const DEFAULT_RECENT_COMMIT_DIFF_COUNT = 1
 
 export class GitContextCollector {
 	constructor(private workspaceRoot: string) {}
@@ -73,7 +80,7 @@ export class GitContextCollector {
 		const parts: string[] = []
 
 		if (diffableChanges.length > 0) {
-			const diffArgs = this.buildDiffArgs(options.staged, diffableChanges)
+			const diffArgs = this.buildDiffArgs(options.staged, diffableChanges, [], options.diff)
 			const diff = await this.runGit(diffArgs)
 			if (diff.trim()) {
 				parts.push(diff)
@@ -98,6 +105,42 @@ export class GitContextCollector {
 
 		options.onProgress?.(100)
 		return parts.join("\n")
+	}
+
+	private async getDiffStats(changes: GitChange[], options: GitContextCollectorOptions): Promise<string> {
+		const trackedChanges = changes.filter((change) => change.status !== "?")
+		const untrackedChanges = changes.filter((change) => change.status === "?")
+		const parts: string[] = []
+
+		if (trackedChanges.length > 0) {
+			const args = this.buildDiffArgs(options.staged, trackedChanges, ["--stat"])
+			const stats = await this.runGit(args)
+			if (stats.trim()) {
+				parts.push(stats.trim())
+			}
+		}
+
+		for (const change of untrackedChanges) {
+			parts.push(await this.getUntrackedFileStat(change))
+		}
+
+		return parts.join("\n")
+	}
+
+	private async getUntrackedFileStat(change: GitChange): Promise<string> {
+		const relativePath = this.getRelativePath(change.filePath)
+		if (await this.isProbablyBinaryFile(change.filePath)) {
+			return `${relativePath} | Bin 0 -> ${await this.getFileSize(change.filePath)} bytes`
+		}
+
+		const content = await fs.readFile(change.filePath, "utf8")
+		const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+		const lineCount = normalizedContent.length === 0 ? 0 : normalizedContent.split("\n").filter(Boolean).length
+		return `${relativePath} | ${lineCount} ${"+".repeat(Math.min(lineCount, 60))}`
+	}
+
+	private async getFileSize(filePath: string): Promise<number> {
+		return (await fs.stat(filePath)).size
 	}
 
 	private async findBinaryChanges(changes: GitChange[], staged: boolean): Promise<Set<string>> {
@@ -191,8 +234,31 @@ export class GitContextCollector {
 		return this.runGit(["branch", "--show-current"])
 	}
 
-	private async getRecentCommits(count: number = 5): Promise<string> {
-		return this.runGit(["log", "--oneline", `-${count}`])
+	private async getRecentCommits(options: GitRecentCommitContextOptions): Promise<string> {
+		const count = this.clampNumber(options.count, 1, 20, DEFAULT_RECENT_COMMIT_COUNT)
+		const args = options.includeBodies
+			? ["log", `-${count}`, "--format=commit %h%nSubject: %s%nBody:%n%b"]
+			: ["log", "--oneline", `-${count}`]
+
+		if (options.includeStats) {
+			args.push("--stat")
+		}
+
+		const parts = [await this.runGit(args)]
+
+		if (options.includeDiffs) {
+			const diffCount = this.clampNumber(options.diffCount, 1, 5, DEFAULT_RECENT_COMMIT_DIFF_COUNT)
+			const hashes = (await this.runGit(["log", `-${diffCount}`, "--format=%H"]))
+				.split("\n")
+				.map((hash) => hash.trim())
+				.filter(Boolean)
+
+			for (const hash of hashes) {
+				parts.push(await this.runGit(["show", "--format=commit %h%nSubject: %s%n%b", "--patch", hash]))
+			}
+		}
+
+		return parts.join("\n")
 	}
 
 	public async collectContext(
@@ -200,7 +266,7 @@ export class GitContextCollector {
 		options: GitContextCollectorOptions,
 		specificFiles?: string[],
 	): Promise<GitContextResult> {
-		const { staged, includeRepoContext = true } = options
+		const { includeBranch = false, recentCommits } = options
 		let context = "## Git Context\n\n"
 		const warnings: string[] = []
 
@@ -209,6 +275,13 @@ export class GitContextCollector {
 		const allStaged = targetChanges.every((change) => change.staged)
 		const allUnstaged = targetChanges.every((change) => !change.staged)
 		const changeDescriptor = allStaged ? "Staged" : allUnstaged ? "Unstaged" : "Selected"
+
+		if (options.diff?.includeStats) {
+			const stats = await this.getDiffStats(targetChanges, options)
+			if (stats.trim()) {
+				context += `### Diff Stats${fileInfo}\n\`\`\`\n${stats.trim()}\n\`\`\`\n\n`
+			}
+		}
 
 		const diff = await this.getDiffForChanges(targetChanges, options)
 		context += `### Full Diff of ${changeDescriptor} Changes${fileInfo}\n\`\`\`diff\n${diff}\n\`\`\`\n\n`
@@ -232,9 +305,11 @@ export class GitContextCollector {
 			context += "### Change Summary\n```\n(No changes matched selection)\n```\n\n"
 		}
 
-		if (includeRepoContext) {
+		if (includeBranch || recentCommits?.include) {
 			context += "### Repository Context\n\n"
+		}
 
+		if (includeBranch) {
 			try {
 				const currentBranch = await this.getCurrentBranch()
 				if (currentBranch) {
@@ -243,11 +318,13 @@ export class GitContextCollector {
 			} catch (error) {
 				warnings.push(`Current branch unavailable: ${this.getErrorMessage(error)}`)
 			}
+		}
 
+		if (recentCommits?.include) {
 			try {
-				const recentCommits = await this.getRecentCommits()
-				if (recentCommits) {
-					context += "**Recent commits:**\n```\n" + recentCommits + "\n```\n"
+				const recentCommitContext = await this.getRecentCommits(recentCommits)
+				if (recentCommitContext) {
+					context += "**Recent commits:**\n```\n" + recentCommitContext + "\n```\n"
 				}
 			} catch (error) {
 				warnings.push(`Recent commits unavailable: ${this.getErrorMessage(error)}`)
@@ -369,8 +446,17 @@ export class GitContextCollector {
 		})
 	}
 
-	private buildDiffArgs(staged: boolean, changes: GitChange[]): string[] {
+	private buildDiffArgs(
+		staged: boolean,
+		changes: GitChange[],
+		extraArgs: string[] = [],
+		diffOptions?: GitDiffContextOptions,
+	): string[] {
 		const args = staged ? ["diff", "--cached"] : ["diff"]
+		const contextLines =
+			!extraArgs.includes("--stat") && diffOptions?.contextLines !== undefined
+				? [`--unified=${this.clampNumber(diffOptions.contextLines, 0, 20, 3)}`]
+				: []
 		const paths = Array.from(
 			new Set(
 				changes.flatMap((change) =>
@@ -381,7 +467,15 @@ export class GitContextCollector {
 			),
 		)
 
-		return paths.length > 0 ? [...args, "--", ...paths] : args
+		return paths.length > 0 ? [...args, ...extraArgs, ...contextLines, "--", ...paths] : [...args, ...extraArgs]
+	}
+
+	private clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
+		if (typeof value !== "number" || !Number.isFinite(value)) {
+			return fallback
+		}
+
+		return Math.min(Math.max(Math.trunc(value), min), max)
 	}
 
 	private getRelativePath(filePath: string): string {
