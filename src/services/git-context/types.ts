@@ -12,11 +12,15 @@ export interface GitContextResult {
 	warnings: string[]
 }
 
-export interface GitOptions {
+export interface GitContextCollection extends GitContextResult {
+	changes: GitChange[]
+}
+
+export interface GitContextOptions {
 	staged: boolean
 }
 
-export interface GitProgressOptions extends GitOptions {
+export interface GitContextCollectorOptions extends GitContextOptions {
 	onProgress?: (percentage: number) => void
 	includeRepoContext?: boolean
 }
