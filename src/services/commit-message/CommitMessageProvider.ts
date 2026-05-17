@@ -79,17 +79,24 @@ export class CommitMessageProvider implements vscode.Disposable {
 						}
 
 						reportProgress(40, t("common:commitMessage.gettingContext"))
-						const gitContext = await gitService.getCommitContext(
+						const gitContextResult = await gitService.getCommitContextResult(
 							resolution.changes,
 							{ staged: resolution.usedStaged, includeRepoContext: true },
 							resolution.files,
 						)
+						if (gitContextResult.warnings.length > 0) {
+							vscode.window.showWarningMessage(
+								t("common:commitMessage.contextWarnings", {
+									warnings: gitContextResult.warnings.join("; "),
+								}),
+							)
+						}
 
 						reportProgress(70, t("common:commitMessage.generating"))
 						const message = await this.generator.generateMessage({
 							workspacePath,
 							selectedFiles: resolution.files,
-							gitContext,
+							gitContext: gitContextResult.context,
 							onProgress: (update) => {
 								if (update.percentage !== undefined) {
 									reportProgress(70 + update.percentage * 0.25, update.message)
