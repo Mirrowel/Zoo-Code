@@ -1,7 +1,7 @@
 import * as path from "path"
 import { promises as fs } from "fs"
 import { spawn } from "child_process"
-import {
+import type {
 	GitContextCollection,
 	GitContextCollectorOptions,
 	GitChange,
@@ -12,22 +12,15 @@ import {
 	GitStatus,
 } from "./types"
 
-export type {
-	GitChange,
-	GitContextCollection,
-	GitContextCollectorOptions,
-	GitDiffContextOptions,
-	GitContextOptions,
-	GitRecentCommitContextOptions,
-	GitContextResult,
-} from "./types"
-
 const DEFAULT_RECENT_COMMIT_COUNT = 5
 const DEFAULT_RECENT_COMMIT_DIFF_COUNT = 1
 
+/** Collects Git status, diff, and repository metadata for commit-message generation. */
 export class GitContextCollector {
+	/** Creates a collector scoped to one workspace repository root. */
 	constructor(private workspaceRoot: string) {}
 
+	/** Returns changed files from staged or unstaged Git state. */
 	public async gatherChanges(options: GitContextCollectorOptions): Promise<GitChange[]> {
 		const statusOutput = await this.getStatus(options)
 		if (!statusOutput) {
@@ -37,6 +30,7 @@ export class GitContextCollector {
 		return options.staged ? this.parseNameStatus(statusOutput, true) : this.parsePorcelainStatus(statusOutput)
 	}
 
+	/** Gathers changes and formats their Git context in one call. */
 	public async collect(options: GitContextCollectorOptions, specificFiles?: string[]): Promise<GitContextCollection> {
 		const changes = await this.gatherChanges(options)
 		const result = await this.collectContext(changes, options, specificFiles)
@@ -44,6 +38,7 @@ export class GitContextCollector {
 		return { ...result, changes }
 	}
 
+	/** Runs a Git subprocess in the workspace root and returns stdout. */
 	private async runGit(args: string[]): Promise<string> {
 		return new Promise((resolve, reject) => {
 			const child = spawn("git", args, {
@@ -69,12 +64,16 @@ export class GitContextCollector {
 		})
 	}
 
+	/** Builds full diff text for tracked, untracked, and binary changes. */
 	private async getDiffForChanges(changes: GitChange[], options: GitContextCollectorOptions): Promise<string> {
+		options.onProgress?.(0)
 		if (changes.length === 0) {
+			options.onProgress?.(100)
 			return ""
 		}
 
 		const binaryChanges = await this.findBinaryChanges(changes, options.staged)
+		options.onProgress?.(25)
 		const diffableChanges = changes.filter((change) => change.status !== "?" && !binaryChanges.has(change.filePath))
 		const untrackedFiles = changes.filter((change) => change.status === "?")
 		const parts: string[] = []
@@ -86,10 +85,12 @@ export class GitContextCollector {
 				parts.push(diff)
 			}
 		}
+		options.onProgress?.(65)
 
 		if (untrackedFiles.length > 0) {
 			parts.push(await this.getUntrackedFileDiffs(untrackedFiles))
 		}
+		options.onProgress?.(85)
 
 		if (binaryChanges.size > 0) {
 			parts.push(
@@ -107,6 +108,7 @@ export class GitContextCollector {
 		return parts.join("\n")
 	}
 
+	/** Builds diff-stat text for tracked changes and synthesized untracked files. */
 	private async getDiffStats(changes: GitChange[], options: GitContextCollectorOptions): Promise<string> {
 		const trackedChanges = changes.filter((change) => change.status !== "?")
 		const untrackedChanges = changes.filter((change) => change.status === "?")
@@ -127,6 +129,7 @@ export class GitContextCollector {
 		return parts.join("\n")
 	}
 
+	/** Returns a Git-style stat summary for an untracked working-tree file. */
 	private async getUntrackedFileStat(change: GitChange): Promise<string> {
 		const relativePath = this.getRelativePath(change.filePath)
 		if (await this.isProbablyBinaryFile(change.filePath)) {
@@ -135,25 +138,34 @@ export class GitContextCollector {
 
 		const content = await fs.readFile(change.filePath, "utf8")
 		const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-		const lineCount = normalizedContent.length === 0 ? 0 : normalizedContent.split("\n").filter(Boolean).length
+		const lineCount = this.countTextLines(normalizedContent)
 		return `${relativePath} | ${lineCount} ${"+".repeat(Math.min(lineCount, 60))}`
 	}
 
+	/** Returns the byte size for a file on disk. */
 	private async getFileSize(filePath: string): Promise<number> {
 		return (await fs.stat(filePath)).size
 	}
 
+	/** Detects binary tracked changes with a single numstat invocation. */
 	private async findBinaryChanges(changes: GitChange[], staged: boolean): Promise<Set<string>> {
 		const binaryFiles = new Set<string>()
+		const trackedChanges = changes.filter((change) => change.status !== "?")
+		if (trackedChanges.length === 0) {
+			return binaryFiles
+		}
 
-		for (const change of changes) {
-			if (change.status === "?") {
-				continue
-			}
+		const args = this.buildNumstatArgs(staged, trackedChanges)
+		const output = await this.runGit(args)
+		const binaryRelativePaths = output
+			.split("\n")
+			.map((line) => line.split("\t"))
+			.filter(([added, deleted, filePath]) => added === "-" && deleted === "-" && Boolean(filePath))
+			.map(([, , ...filePathParts]) => filePathParts.join("\t"))
 
-			const args = this.buildNumstatArgs(staged, change)
-			const output = await this.runGit(args)
-			if (output.includes("-\t-\t")) {
+		for (const change of trackedChanges) {
+			const relativePath = this.getRelativePath(change.filePath)
+			if (binaryRelativePaths.includes(relativePath)) {
 				binaryFiles.add(change.filePath)
 			}
 		}
@@ -161,11 +173,13 @@ export class GitContextCollector {
 		return binaryFiles
 	}
 
-	private buildNumstatArgs(staged: boolean, change: GitChange): string[] {
+	/** Builds path-limited numstat arguments for binary detection. */
+	private buildNumstatArgs(staged: boolean, changes: GitChange[]): string[] {
 		const args = staged ? ["diff", "--cached", "--numstat"] : ["diff", "--numstat"]
-		return [...args, "--", this.getRelativePath(change.filePath)]
+		return [...args, "--", ...changes.map((change) => this.getRelativePath(change.filePath))]
 	}
 
+	/** Checks the first bytes of a file for NUL bytes. */
 	private async isProbablyBinaryFile(filePath: string): Promise<boolean> {
 		const fileHandle = await fs.open(filePath, "r")
 		try {
@@ -177,6 +191,7 @@ export class GitContextCollector {
 		}
 	}
 
+	/** Builds synthesized diff text for untracked files. */
 	private async getUntrackedFileDiffs(changes: GitChange[]): Promise<string> {
 		const diffs: string[] = []
 
@@ -192,6 +207,7 @@ export class GitContextCollector {
 		return diffs.join("\n")
 	}
 
+	/** Creates a unified new-file diff from working-tree file content. */
 	private async createNewFileDiff(filePath: string): Promise<string> {
 		const relativePath = this.getRelativePath(filePath)
 		const content = await fs.readFile(filePath, "utf8")
@@ -224,16 +240,19 @@ export class GitContextCollector {
 		return diffLines.join("\n")
 	}
 
+	/** Returns raw Git status output for staged or unstaged collection. */
 	private async getStatus(options: GitContextOptions): Promise<string> {
 		return options.staged
 			? this.runGit(["diff", "--name-status", "--cached", "-z"])
 			: this.runGit(["status", "--porcelain=v1", "-z", "--untracked-files=all"])
 	}
 
+	/** Returns the currently checked-out branch name. */
 	private async getCurrentBranch(): Promise<string> {
 		return this.runGit(["branch", "--show-current"])
 	}
 
+	/** Returns recent commit summaries and optional stats or patch context. */
 	private async getRecentCommits(options: GitRecentCommitContextOptions): Promise<string> {
 		const count = this.clampNumber(options.count, 1, 20, DEFAULT_RECENT_COMMIT_COUNT)
 		const args = options.includeBodies
@@ -261,6 +280,7 @@ export class GitContextCollector {
 		return parts.join("\n")
 	}
 
+	/** Formats collected changes as Markdown context for prompt input. */
 	public async collectContext(
 		changes: GitChange[],
 		options: GitContextCollectorOptions,
@@ -338,6 +358,7 @@ export class GitContextCollector {
 		return { context, warnings }
 	}
 
+	/** Formats collected changes and returns only the Markdown context body. */
 	public async getContext(
 		changes: GitChange[],
 		options: GitContextCollectorOptions,
@@ -346,10 +367,12 @@ export class GitContextCollector {
 		return (await this.collectContext(changes, options, specificFiles)).context
 	}
 
+	/** Normalizes unknown thrown values into displayable error messages. */
 	private getErrorMessage(error: unknown): string {
 		return error instanceof Error ? error.message : String(error)
 	}
 
+	/** Parses NUL-delimited git diff --name-status output. */
 	private parseNameStatus(output: string, staged: boolean): GitChange[] {
 		const fields = this.splitNullDelimited(output)
 		const changes: GitChange[] = []
@@ -359,6 +382,10 @@ export class GitContextCollector {
 			const status = this.getChangeStatusFromCode(statusCode)
 
 			if (status === "R" || status === "C") {
+				if (index + 2 >= fields.length) {
+					break
+				}
+
 				const oldFilePath = fields[++index]
 				const filePath = fields[++index]
 				if (oldFilePath && filePath) {
@@ -370,6 +397,10 @@ export class GitContextCollector {
 					})
 				}
 				continue
+			}
+
+			if (index + 1 >= fields.length) {
+				break
 			}
 
 			const filePath = fields[++index]
@@ -385,6 +416,7 @@ export class GitContextCollector {
 		return changes
 	}
 
+	/** Parses NUL-delimited git status --porcelain=v1 output for unstaged changes. */
 	private parsePorcelainStatus(output: string): GitChange[] {
 		const fields = this.splitNullDelimited(output)
 		const changes: GitChange[] = []
@@ -397,12 +429,18 @@ export class GitContextCollector {
 
 			const indexStatus = entry.charAt(0)
 			const workingStatus = entry.charAt(1)
-			const statusCode = indexStatus === "?" && workingStatus === "?" ? "?" : workingStatus.trim() || indexStatus
+			const isUntracked = indexStatus === "?" && workingStatus === "?"
+			const worktreeStatus = workingStatus.trim()
+			if (!isUntracked && !worktreeStatus) {
+				continue
+			}
+
+			const statusCode = isUntracked ? "?" : worktreeStatus
 			const status = this.getChangeStatusFromCode(statusCode)
 			const filePath = entry.substring(3)
 
 			if (status === "R" || status === "C") {
-				const oldFilePath = fields[++index]
+				const oldFilePath = index + 1 < fields.length ? fields[++index] : undefined
 				changes.push({
 					filePath: path.join(this.workspaceRoot, filePath),
 					oldFilePath: oldFilePath ? path.join(this.workspaceRoot, oldFilePath) : undefined,
@@ -422,30 +460,38 @@ export class GitContextCollector {
 		return changes
 	}
 
+	/** Splits NUL-delimited Git output and drops the trailing empty field. */
 	private splitNullDelimited(output: string): string[] {
 		return output.split("\0").filter(Boolean)
 	}
 
+	/** Applies exact path or basename-only file selection to collected changes. */
 	private filterChanges(changes: GitChange[], specificFiles?: string[]): GitChange[] {
 		if (!specificFiles || specificFiles.length === 0) {
 			return changes
 		}
 
 		return changes.filter((change) => {
-			const absolutePath = change.filePath
-			const relativePath = this.getRelativePath(absolutePath)
+			const absolutePath = this.normalizePath(change.filePath)
+			const relativePath = this.getRelativePath(change.filePath)
 			return specificFiles.some((file) => {
 				const normalizedFile = path.normalize(file).replace(/\\/g, "/")
+				const absoluteFile = this.normalizePath(
+					path.isAbsolute(file) ? file : path.join(this.workspaceRoot, file),
+				)
+				const isBasenameOnly = !normalizedFile.includes("/")
+
 				return (
-					file === absolutePath ||
-					file === relativePath ||
-					absolutePath.endsWith(file) ||
-					relativePath === normalizedFile
+					absoluteFile === absolutePath ||
+					relativePath === normalizedFile ||
+					// Basename-only matching is intentional for SCM selections that pass only file names.
+					(isBasenameOnly && path.basename(relativePath) === normalizedFile)
 				)
 			})
 		})
 	}
 
+	/** Builds path-limited diff arguments for the requested change set. */
 	private buildDiffArgs(
 		staged: boolean,
 		changes: GitChange[],
@@ -470,6 +516,7 @@ export class GitContextCollector {
 		return paths.length > 0 ? [...args, ...extraArgs, ...contextLines, "--", ...paths] : [...args, ...extraArgs]
 	}
 
+	/** Clamps a numeric option to an integer range with fallback handling. */
 	private clampNumber(value: number | undefined, min: number, max: number, fallback: number): number {
 		if (typeof value !== "number" || !Number.isFinite(value)) {
 			return fallback
@@ -478,10 +525,12 @@ export class GitContextCollector {
 		return Math.min(Math.max(Math.trunc(value), min), max)
 	}
 
+	/** Converts an absolute file path to a slash-normalized repository-relative path. */
 	private getRelativePath(filePath: string): string {
 		return path.relative(this.workspaceRoot, filePath).replace(/\\/g, "/")
 	}
 
+	/** Converts a Git status code into the collector's status enum. */
 	private getChangeStatusFromCode(code: string): GitStatus {
 		const status = code.charAt(0)
 		switch (status) {
@@ -498,6 +547,7 @@ export class GitContextCollector {
 		}
 	}
 
+	/** Converts a status enum to a human-readable label. */
 	private getReadableStatus(status: GitStatus): string {
 		switch (status) {
 			case "M":
@@ -520,5 +570,17 @@ export class GitContextCollector {
 		}
 	}
 
-	public dispose(): void {}
+	/** Counts text lines while preserving blank lines and ignoring a final newline terminator. */
+	private countTextLines(content: string): number {
+		if (content.length === 0) {
+			return 0
+		}
+
+		return (content.endsWith("\n") ? content.slice(0, -1) : content).split("\n").length
+	}
+
+	/** Normalizes absolute paths for platform-independent comparisons. */
+	private normalizePath(filePath: string): string {
+		return path.normalize(filePath).replace(/\\/g, "/")
+	}
 }
