@@ -64,6 +64,10 @@ export function appendCommitMessageAttribution(message: string, attribution: str
 		return cleanedMessage
 	}
 
+	if (!cleanedMessage) {
+		return cleanedAttribution
+	}
+
 	if (cleanedMessage.endsWith(cleanedAttribution)) {
 		return cleanedMessage
 	}

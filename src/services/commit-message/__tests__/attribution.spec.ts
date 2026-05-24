@@ -40,6 +40,10 @@ describe("commit message attribution", () => {
 		)
 	})
 
+	it("returns only trimmed attribution when message is empty", () => {
+		expect(appendCommitMessageAttribution("   ", "\nAssisted-by: Zoo Code\n")).toBe("Assisted-by: Zoo Code")
+	})
+
 	it("does not duplicate an existing attribution footer", () => {
 		const message = "feat(scm): generate commits\n\nAssisted-by: Zoo Code"
 
