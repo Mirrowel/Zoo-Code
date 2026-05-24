@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Include le patch dei commit recenti. Questo può migliorare l'abbinamento dello stile ma aggiunge molti dati di contesto.",
 				"recentCommitDiffCount": "Numero di diff dei commit recenti",
 				"recentCommitDiffCountDescription": "Quanti commit recenti dovrebbero includere patch complete. Limitato a 5."
+			},
+			"attribution": {
+				"title": "Piè di pagina attribuzione AI",
+				"description": "Aggiungi facoltativamente un piè di pagina di attribuzione dopo che Zoo ha generato un messaggio di commit. Questo viene aggiunto localmente dopo la generazione e non viene richiesto al modello.",
+				"enabled": "Aggiungi piè di pagina attribuzione AI",
+				"enabledDescription": "Usa questa opzione quando il tuo progetto richiede la divulgazione per i contributi assistiti dall'AI.",
+				"template": "Modello di attribuzione",
+				"placeholders": "Segnaposto: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = provider API utilizzato; ${model} = modello utilizzato; ${providerModel} = provider/modello."
 			}
 		}
 	},

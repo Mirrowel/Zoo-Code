@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "최근 커밋의 패치를 포함합니다. 스타일 매칭을 개선할 수 있지만 많은 컨텍스트가 추가됩니다.",
 				"recentCommitDiffCount": "최근 커밋 diff 수",
 				"recentCommitDiffCountDescription": "전체 패치를 포함할 최근 커밋 수입니다. 최대 5개로 제한됩니다."
+			},
+			"attribution": {
+				"title": "AI 저작자 표시 바닥글",
+				"description": "Zoo가 커밋 메시지를 생성한 후 선택적으로 저작자 표시 바닥글을 추가합니다. 이는 생성 후 로컬에서 추가되며 모델에 요청되지 않습니다.",
+				"enabled": "AI 저작자 표시 바닥글 추가",
+				"enabledDescription": "프로젝트에서 AI 지원 기여에 대한 공개가 필요한 경우 사용하세요.",
+				"template": "저작자 표시 템플릿",
+				"placeholders": "자리 표시자: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = 사용된 API 제공자; ${model} = 사용된 모델; ${providerModel} = 제공자/모델."
 			}
 		}
 	},

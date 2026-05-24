@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Menyertakan patch dari commit terbaru. Ini dapat meningkatkan pencocokan gaya tetapi menambah banyak konteks.",
 				"recentCommitDiffCount": "Jumlah diff commit terbaru",
 				"recentCommitDiffCountDescription": "Berapa banyak commit terbaru yang harus menyertakan patch lengkap. Dibatasi hingga 5."
+			},
+			"attribution": {
+				"title": "Footer atribusi AI",
+				"description": "Tambahkan footer atribusi secara opsional setelah Zoo menghasilkan pesan commit. Ini ditambahkan secara lokal setelah pembuatan dan tidak diminta dari model.",
+				"enabled": "Tambahkan footer atribusi AI",
+				"enabledDescription": "Gunakan ini ketika proyek Anda memerlukan pengungkapan untuk kontribusi yang dibantu AI.",
+				"template": "Template atribusi",
+				"placeholders": "Placeholder: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = penyedia API yang digunakan; ${model} = model yang digunakan; ${providerModel} = penyedia/model."
 			}
 		}
 	},

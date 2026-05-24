@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Schließt Patches von aktuellen Commits ein. Dies kann die Stilerkennung verbessern, fügt aber viel Kontext hinzu.",
 				"recentCommitDiffCount": "Anzahl aktueller Commit-Diffs",
 				"recentCommitDiffCountDescription": "Wie viele der letzten Commits vollständige Patches enthalten sollen. Maximal 5."
+			},
+			"attribution": {
+				"title": "KI-Attribuierungs-Fußzeile",
+				"description": "Hängt optional eine Attribuierungs-Fußzeile an, nachdem Zoo eine Commit-Nachricht generiert hat. Diese wird lokal nach der Generierung hinzugefügt und nicht vom Modell angefordert.",
+				"enabled": "KI-Attribuierungs-Fußzeile hinzufügen",
+				"enabledDescription": "Verwenden Sie dies, wenn Ihr Projekt eine Offenlegung für KI-gestützte Beiträge erfordert.",
+				"template": "Attribuierungsvorlage",
+				"placeholders": "Platzhalter: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = verwendeter API-Anbieter; ${model} = verwendetes Modell; ${providerModel} = Anbieter/Modell."
 			}
 		}
 	},

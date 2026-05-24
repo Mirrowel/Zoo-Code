@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Son commit'lerden yamaları dahil eder. Bu stil eşleştirmesini iyileştirebilir ancak çok fazla bağlam ekler.",
 				"recentCommitDiffCount": "Son commit diff sayısı",
 				"recentCommitDiffCountDescription": "Kaç son commit'in tam yama içermesi gerektiği. 5 ile sınırlıdır."
+			},
+			"attribution": {
+				"title": "AI atıf alt bilgisi",
+				"description": "Zoo bir commit mesajı oluşturduktan sonra isteğe bağlı olarak bir atıf alt bilgisi ekleyin. Bu, oluşturulduktan sonra yerel olarak eklenir ve modelden istenmez.",
+				"enabled": "AI atıf alt bilgisi ekle",
+				"enabledDescription": "Projeniz AI destekli katılımların bildirilmesini gerektirdiğinde kullanın.",
+				"template": "Atıf şablonu",
+				"placeholders": "Yer tutucular: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = kullanılan API sağlayıcısı; ${model} = kullanılan model; ${providerModel} = sağlayıcı/model."
 			}
 		}
 	},

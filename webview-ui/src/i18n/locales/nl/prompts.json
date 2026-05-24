@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Neemt patches van recente commits op. Dit kan stijlmatching verbeteren maar voegt veel context toe.",
 				"recentCommitDiffCount": "Aantal recente commit-diffs",
 				"recentCommitDiffCountDescription": "Hoeveel laatste commits volledige patches moeten bevatten. Beperkt tot 5."
+			},
+			"attribution": {
+				"title": "AI-attributievoettekst",
+				"description": "Voeg optioneel een attributievoettekst toe nadat Zoo een commitbericht heeft gegenereerd. Dit wordt lokaal toegevoegd na generatie en wordt niet bij het model aangevraagd.",
+				"enabled": "AI-attributievoettekst toevoegen",
+				"enabledDescription": "Gebruik dit wanneer je project openbaarmaking vereist voor AI-ondersteunde bijdragen.",
+				"template": "Attributiesjabloon",
+				"placeholders": "Tijdelijke aanduidingen: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = gebruikte API-provider; ${model} = gebruikt model; ${providerModel} = provider/model."
 			}
 		}
 	},

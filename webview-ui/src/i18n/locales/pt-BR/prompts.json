@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Inclui patches de commits recentes. Isso pode melhorar a correspondência de estilo, mas adiciona muito contexto.",
 				"recentCommitDiffCount": "Quantidade de diffs de commits recentes",
 				"recentCommitDiffCountDescription": "Quantos commits recentes devem incluir patches completos. Limitado a 5."
+			},
+			"attribution": {
+				"title": "Rodapé de atribuição de IA",
+				"description": "Opcionalmente, anexe um rodapé de atribuição após o Zoo gerar uma mensagem de commit. Isso é adicionado localmente após a geração e não é solicitado ao modelo.",
+				"enabled": "Adicionar rodapé de atribuição de IA",
+				"enabledDescription": "Use isto quando seu projeto exigir divulgação para contribuições assistidas por IA.",
+				"template": "Modelo de atribuição",
+				"placeholders": "Espaços reservados: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = provedor de API usado; ${model} = modelo usado; ${providerModel} = provedor/modelo."
 			}
 		}
 	},

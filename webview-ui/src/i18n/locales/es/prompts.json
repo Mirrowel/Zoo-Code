@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Incluye parches de commits recientes. Esto puede mejorar la coincidencia de estilo pero añade mucho contexto.",
 				"recentCommitDiffCount": "Cantidad de diffs de commits recientes",
 				"recentCommitDiffCountDescription": "Cuántos de los últimos commits deben incluir parches completos. Máximo 5."
+			},
+			"attribution": {
+				"title": "Pie de página de atribución de IA",
+				"description": "Añade opcionalmente un pie de página de atribución después de que Zoo genere un mensaje de commit. Se añade localmente después de la generación y no se solicita al modelo.",
+				"enabled": "Añadir pie de página de atribución de IA",
+				"enabledDescription": "Usa esto cuando tu proyecto requiera divulgación de contribuciones asistidas por IA.",
+				"template": "Plantilla de atribución",
+				"placeholders": "Marcadores de posición: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = proveedor de API usado; ${model} = modelo usado; ${providerModel} = proveedor/modelo."
 			}
 		}
 	},

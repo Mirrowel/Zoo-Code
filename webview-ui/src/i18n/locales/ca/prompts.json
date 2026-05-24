@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Inclou pegats de commits recents. Això pot millorar la coincidència d'estil però afegeix molt context.",
 				"recentCommitDiffCount": "Nombre de diffs de commits recents",
 				"recentCommitDiffCountDescription": "Quants dels últims commits haurien d'incloure pegats complets. Limitat a 5."
+			},
+			"attribution": {
+				"title": "Peu d'atribució de la IA",
+				"description": "Afegeix opcionalment un peu d'atribució després que Zoo generi un missatge de commit. S'afegeix localment després de la generació i no es sol·licita al model.",
+				"enabled": "Afegir peu d'atribució de la IA",
+				"enabledDescription": "Utilitzeu-ho quan el vostre projecte requereixi la divulgació de contribucions assistides per IA.",
+				"template": "Plantilla d'atribució",
+				"placeholders": "Marcadors de posició: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = proveïdor d'API utilitzat; ${model} = model utilitzat; ${providerModel} = proveïdor/model."
 			}
 		}
 	},
