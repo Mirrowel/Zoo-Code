@@ -3,6 +3,7 @@ import { defaultCommitMessageGitContextSettings, type CommitMessageGitContextSet
 import { ContextProxy } from "../../core/config/ContextProxy"
 import type { GitContextCollectorOptions } from "../git-context"
 
+/** Reads and normalizes the persisted Git context settings for commit message generation. */
 export function getCommitMessageGitContextSettings(): Required<CommitMessageGitContextSettings> {
 	const rawSettings = ContextProxy.instance.getValue("commitMessageGitContext") as
 		| CommitMessageGitContextSettings
@@ -38,6 +39,7 @@ export function normalizeCommitMessageGitContextSettings(
 	}
 }
 
+/** Converts commit-message settings into options consumed by the Git context collector. */
 export function toGitContextCollectorOptions(
 	staged: boolean,
 	settings: Required<CommitMessageGitContextSettings>,

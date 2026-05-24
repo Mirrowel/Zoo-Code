@@ -218,6 +218,7 @@
 			"scm/input": [
 				{
 					"command": "zoo-code.generateCommitMessage",
+					"when": "scmProvider == git",
 					"group": "navigation"
 				}
 			],
