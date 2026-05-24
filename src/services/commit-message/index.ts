@@ -2,6 +2,7 @@ import * as vscode from "vscode"
 import { CommitMessageProvider } from "./CommitMessageProvider"
 import { t } from "../../i18n"
 
+/** Registers the commit message provider and reports activation failures to the output channel. */
 export function registerCommitMessageProvider(
 	context: vscode.ExtensionContext,
 	outputChannel: vscode.OutputChannel,

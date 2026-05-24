@@ -9,13 +9,17 @@ import { CommitMessageGenerator } from "./CommitMessageGenerator"
 import { getCommitMessageGitContextSettings, toGitContextCollectorOptions } from "./gitContextSettings"
 
 interface VscGenerationRequest {
+	/** Source control input box that should receive the generated message. */
 	inputBox: { value: string }
+	/** Root URI supplied by VS Code for the source control command invocation. */
 	rootUri?: vscode.Uri
 }
 
+/** Registers and handles the VS Code command that writes AI commit messages into SCM input. */
 export class CommitMessageProvider implements vscode.Disposable {
 	private generator: CommitMessageGenerator
 
+	/** Creates the provider and wires it to the extension settings store. */
 	constructor(
 		private context: vscode.ExtensionContext,
 		private outputChannel: vscode.OutputChannel,
@@ -25,6 +29,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 		this.generator = new CommitMessageGenerator(providerSettingsManager)
 	}
 
+	/** Registers the generate commit message command with VS Code. */
 	public async activate(): Promise<void> {
 		this.outputChannel.appendLine(t("common:commitMessage.activated"))
 
@@ -37,6 +42,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 		this.context.subscriptions.push(...disposables)
 	}
 
+	/** Handles the command invocation from VS Code's SCM UI. */
 	private async handleVSCodeCommand(vsRequest?: VscGenerationRequest): Promise<void> {
 		try {
 			const workspacePath = this.determineWorkspacePath(vsRequest?.rootUri)
@@ -73,13 +79,6 @@ export class CommitMessageProvider implements vscode.Disposable {
 							return
 						}
 
-						if (!resolution.usedStaged) {
-							const confirmed = await this.confirmUnstagedGeneration(resolution.changes.length)
-							if (!confirmed) {
-								return
-							}
-						}
-
 						const gitContextSettings = getCommitMessageGitContextSettings()
 						reportProgress(25, t("common:commitMessage.foundChanges", { count: resolution.changes.length }))
 
@@ -98,10 +97,14 @@ export class CommitMessageProvider implements vscode.Disposable {
 						}
 
 						reportProgress(70, t("common:commitMessage.generating"))
+						const gitContext = this.appendExistingCommitMessageDraft(
+							gitContextResult.context,
+							targetRepository.inputBox.value,
+						)
 						const message = await this.generator.generateMessage({
 							workspacePath,
 							selectedFiles: resolution.files,
-							gitContext: gitContextResult.context,
+							gitContext,
 							onProgress: (update) => {
 								if (update.percentage !== undefined) {
 									reportProgress(70 + update.percentage * 0.25, update.message)
@@ -121,18 +124,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 			vscode.window.showErrorMessage(t("common:commitMessage.generationFailed", { errorMessage }))
 		}
 	}
-
-	private async confirmUnstagedGeneration(changeCount: number): Promise<boolean> {
-		const confirmAction = t("common:commitMessage.confirmUnstagedAction")
-		const selection = await vscode.window.showWarningMessage(
-			t("common:commitMessage.confirmUnstaged", { count: changeCount }),
-			{ modal: true },
-			confirmAction,
-		)
-
-		return selection === confirmAction
-	}
-
+	/** Resolves staged changes, asking before falling back to unstaged worktree changes. */
 	private async resolveCommitChanges(gitCollector: GitContextCollector): Promise<{
 		changes: GitChange[]
 		files: string[]
@@ -142,6 +134,15 @@ export class CommitMessageProvider implements vscode.Disposable {
 		let usedStaged = true
 
 		if (changes.length === 0) {
+			const useUnstaged = await this.confirmUnstagedGeneration()
+			if (!useUnstaged) {
+				return {
+					changes: [],
+					files: [],
+					usedStaged,
+				}
+			}
+
 			changes = await gitCollector.gatherChanges({ staged: false })
 			usedStaged = false
 		}
@@ -153,6 +154,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 		}
 	}
 
+	/** Finds the Git repository that owns the requested workspace path. */
 	private async determineTargetRepository(workspacePath: string): Promise<VscGenerationRequest | null> {
 		try {
 			const gitExtension = vscode.extensions.getExtension("vscode.git")
@@ -183,12 +185,17 @@ export class CommitMessageProvider implements vscode.Disposable {
 				return matchingRepositories[0]
 			}
 
-			return repositories[0] ?? null
+			if (repositories.length === 1) {
+				return repositories[0]
+			}
+
+			return null
 		} catch (error) {
 			return null
 		}
 	}
 
+	/** Derives the workspace path from the SCM resource or active workspace. */
 	private determineWorkspacePath(resourceUri?: vscode.Uri): string {
 		if (resourceUri) {
 			return resourceUri.fsPath
@@ -202,9 +209,40 @@ export class CommitMessageProvider implements vscode.Disposable {
 		throw new Error("Could not determine workspace path")
 	}
 
+	/** Adds an existing commit input draft to the model context so the next message can improve it. */
+	private appendExistingCommitMessageDraft(gitContext: string, existingDraft: string): string {
+		const normalizedDraft = existingDraft.trim()
+		if (!normalizedDraft) {
+			return gitContext
+		}
+
+		return `${gitContext}
+
+## Existing Commit Message Draft
+The Git commit input already contains this draft. Use it as guidance and generate the best final commit message for the changes. You may improve, replace, or preserve parts of it as appropriate.
+
+\`\`\`
+${normalizedDraft}
+\`\`\``
+	}
+
+	/** Confirms whether unstaged changes may be gathered when there are no staged changes. */
+	private async confirmUnstagedGeneration(): Promise<boolean> {
+		const confirmAction = t("common:commitMessage.confirmUnstagedAction")
+		const choice = await vscode.window.showWarningMessage(
+			t("common:commitMessage.useUnstagedConfirm"),
+			{ modal: true },
+			confirmAction,
+		)
+
+		return choice === confirmAction
+	}
+
+	/** Keeps provider cleanup compatible with VS Code disposable registration. */
 	public dispose(): void {}
 }
 
+/** Returns true when the target path is the repository root or is contained by it. */
 export function isPathWithinRepository(targetPath: string, repositoryPath: string): boolean {
 	const relativePath = path.relative(path.resolve(repositoryPath), path.resolve(targetPath))
 	return relativePath === "" || (!!relativePath && !relativePath.startsWith("..") && !path.isAbsolute(relativePath))
