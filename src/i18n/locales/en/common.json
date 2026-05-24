@@ -272,6 +272,7 @@
 		"generatingFromUnstaged": "Zoo: Generating message using unstaged changes",
 		"confirmUnstaged": "No staged changes found. Generate a commit message from {{count}} unstaged/untracked changes instead?",
 		"confirmUnstagedAction": "Generate from unstaged changes",
+		"useUnstagedConfirm": "No staged changes were found. Generate a commit message from unstaged changes instead?",
 		"activationFailed": "Zoo: Failed to activate message generator: {{error}}",
 		"providerRegistered": "Zoo: Commit message provider registered",
 		"initializing": "Initializing...",
