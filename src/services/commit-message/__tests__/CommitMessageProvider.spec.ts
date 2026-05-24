@@ -7,6 +7,12 @@ vi.mock("vscode", () => ({
 	window: {
 		showWarningMessage: vi.fn(),
 	},
+	workspace: {
+		workspaceFolders: undefined,
+	},
+	Uri: {
+		file: (fsPath: string) => ({ fsPath }),
+	},
 }))
 
 describe("CommitMessageProvider", () => {
@@ -18,6 +24,7 @@ describe("CommitMessageProvider", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks()
+		;(vscode.workspace as any).workspaceFolders = undefined
 	})
 
 	it("matches repository roots by path containment instead of string prefix", () => {
@@ -84,5 +91,30 @@ describe("CommitMessageProvider", () => {
 
 		expect(gitCollector.gatherChanges).toHaveBeenCalledTimes(1)
 		expect(resolution).toEqual({ changes: [], files: [], usedStaged: true })
+	})
+
+	it("uses the SCM resource URI as the workspace path when provided", () => {
+		const provider = createProvider()
+
+		expect((provider as any).determineWorkspacePath(vscode.Uri.file("/repo"))).toBe("/repo")
+	})
+
+	it("falls back to the workspace folder only when exactly one folder is open", () => {
+		;(vscode.workspace as any).workspaceFolders = [{ uri: vscode.Uri.file("/single-root") }]
+		const provider = createProvider()
+
+		expect((provider as any).determineWorkspacePath()).toBe("/single-root")
+	})
+
+	it("fails clearly instead of guessing in multi-root workspaces", () => {
+		;(vscode.workspace as any).workspaceFolders = [
+			{ uri: vscode.Uri.file("/first-root") },
+			{ uri: vscode.Uri.file("/second-root") },
+		]
+		const provider = createProvider()
+
+		expect(() => (provider as any).determineWorkspacePath()).toThrow(
+			"Run this command from a specific Git source control input in a multi-root workspace",
+		)
 	})
 })
