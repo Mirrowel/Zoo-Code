@@ -1,4 +1,4 @@
-import { normalizeCommitMessageGitContextSettings, type CommitMessageGitContextSettings } from "@roo-code/types"
+import { type CommitMessageGitContextSettings } from "@roo-code/types"
 
 import type { GitContextCollectorOptions } from "../git-context"
 import { getActiveCommitMessageProfileSettings } from "./profileSettings"

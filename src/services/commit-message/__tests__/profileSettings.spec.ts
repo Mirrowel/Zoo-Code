@@ -53,7 +53,7 @@ describe("commit message profile settings", () => {
 		expect(settings.activeProfileId).toBe("profile-1")
 	})
 
-	it("merges default Git context settings for each profile", () => {
+	it("clamps recent commit diff count while merging default Git context settings", () => {
 		const contextProxy = createContextProxy({
 			commitMessageProfiles: {
 				activeProfileId: "detailed",

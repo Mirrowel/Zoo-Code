@@ -251,7 +251,11 @@ describe("CommitMessagePromptSettings", () => {
 			/>,
 		)
 
-		fireEvent.click(screen.getAllByRole("checkbox")[3])
+		fireEvent.click(
+			screen.getByRole("checkbox", {
+				name: /supportPrompts\.commitMessage\.gitContext\.includeRecentCommitBodies/i,
+			}),
+		)
 
 		expect(setCommitMessageProfiles).toHaveBeenCalledWith({
 			activeProfileId: "release",
