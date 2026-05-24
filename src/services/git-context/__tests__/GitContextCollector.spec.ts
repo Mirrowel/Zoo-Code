@@ -14,6 +14,7 @@ const mockSpawn = vi.mocked(spawn)
 const workspaceRoot = path.resolve("/repo")
 const requiredContextOnly = { includeBranch: false, recentCommits: { include: false } }
 
+/** Queues a mocked Git subprocess response for the next spawn call. */
 function mockGitCommand(stdout: string, stderr = "", code = 0) {
 	mockSpawn.mockImplementationOnce((() => {
 		const child = new EventEmitter() as EventEmitter & {
@@ -75,6 +76,23 @@ describe("GitContextCollector", () => {
 		])
 	})
 
+	it("parses staged paths with spaces, special characters, and deleted status", async () => {
+		mockGitCommand(["M", "src/file with spaces.ts", "D", "src/old'file.ts", ""].join("\0"))
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const changes = await collector.gatherChanges({ staged: true })
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"git",
+			["diff", "--name-status", "--cached", "-z"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(changes).toEqual([
+			{ filePath: path.join(workspaceRoot, "src/file with spaces.ts"), status: "M", staged: true },
+			{ filePath: path.join(workspaceRoot, "src/old'file.ts"), status: "D", staged: true },
+		])
+	})
+
 	it("requests all untracked files instead of collapsed untracked directories", async () => {
 		mockGitCommand(["?? src/new.ts", ""].join("\0"))
 
@@ -87,6 +105,29 @@ describe("GitContextCollector", () => {
 			expect.objectContaining({ cwd: workspaceRoot }),
 		)
 		expect(changes).toEqual([{ filePath: path.join(workspaceRoot, "src/new.ts"), status: "?", staged: false }])
+	})
+
+	it("ignores staged-only entries when gathering unstaged changes", async () => {
+		mockGitCommand(["M  src/staged.ts", ""].join("\0"))
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const changes = await collector.gatherChanges({ staged: false })
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			"git",
+			["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(changes).toEqual([])
+	})
+
+	it("skips malformed staged name-status entries without reading past the output", async () => {
+		mockGitCommand(["R100", "src/old.ts", ""].join("\0"))
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const changes = await collector.gatherChanges({ staged: true })
+
+		expect(changes).toEqual([])
 	})
 
 	it("keeps lockfiles in git context because git state is authoritative", async () => {
@@ -139,6 +180,54 @@ describe("GitContextCollector", () => {
 		expect(context).toContain("src/file.ts | 3 ++-")
 	})
 
+	it("batches binary detection for tracked changes", async () => {
+		mockGitCommand("-\t-\tsrc/image.png\n1\t1\tsrc/file.ts\n")
+		mockGitCommand("diff --git a/src/file.ts b/src/file.ts\n")
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const context = await collector.getContext(
+			[
+				{ filePath: path.join(workspaceRoot, "src/image.png"), status: "M", staged: true },
+				{ filePath: path.join(workspaceRoot, "src/file.ts"), status: "M", staged: true },
+			],
+			{ staged: true, ...requiredContextOnly },
+		)
+
+		expect(mockSpawn).toHaveBeenNthCalledWith(
+			1,
+			"git",
+			["diff", "--cached", "--numstat", "--", "src/image.png", "src/file.ts"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(mockSpawn).toHaveBeenCalledTimes(2)
+		expect(context).toContain("Binary file modified: src/image.png")
+		expect(context).toContain("diff --git a/src/file.ts b/src/file.ts")
+	})
+
+	it("matches selected files by exact path or basename without suffix matching", async () => {
+		mockGitCommand("1\t1\tsrc/test.ts\n")
+		mockGitCommand("diff --git a/src/test.ts b/src/test.ts\n")
+
+		const collector = new GitContextCollector(workspaceRoot)
+		const context = await collector.getContext(
+			[
+				{ filePath: path.join(workspaceRoot, "src/mytest.ts"), status: "M", staged: true },
+				{ filePath: path.join(workspaceRoot, "src/test.ts"), status: "M", staged: true },
+			],
+			{ staged: true, ...requiredContextOnly },
+			["test.ts"],
+		)
+
+		expect(mockSpawn).toHaveBeenNthCalledWith(
+			2,
+			"git",
+			["diff", "--cached", "--", "src/test.ts"],
+			expect.objectContaining({ cwd: workspaceRoot }),
+		)
+		expect(context).toContain("Modified (staged): src/test.ts")
+		expect(context).not.toContain("src/mytest.ts")
+	})
+
 	it("includes full new-file diffs for untracked text files", async () => {
 		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-git-context-"))
 		try {
@@ -152,11 +241,30 @@ describe("GitContextCollector", () => {
 				...requiredContextOnly,
 			})
 
-			expect(mockSpawn).not.toHaveBeenCalled()
 			expect(context).toContain("diff --git a/src/new.ts b/src/new.ts")
 			expect(context).toContain("--- /dev/null")
 			expect(context).toContain("+export const value = 1")
 			expect(context).toContain("Untracked (unstaged): src/new.ts")
+		} finally {
+			await fs.rm(tempRoot, { recursive: true, force: true })
+		}
+	})
+
+	it("counts blank lines in untracked text file stats", async () => {
+		const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "zoo-git-context-"))
+		try {
+			const filePath = path.join(tempRoot, "src", "new.ts")
+			await fs.mkdir(path.dirname(filePath), { recursive: true })
+			await fs.writeFile(filePath, "first\n\nthird\n")
+
+			const collector = new GitContextCollector(tempRoot)
+			const context = await collector.getContext([{ filePath, status: "?", staged: false }], {
+				staged: false,
+				...requiredContextOnly,
+				diff: { includeStats: true },
+			})
+
+			expect(context).toContain("src/new.ts | 3 +++")
 		} finally {
 			await fs.rm(tempRoot, { recursive: true, force: true })
 		}
