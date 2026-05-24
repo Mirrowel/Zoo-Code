@@ -1,6 +1,7 @@
 import {
 	getActiveCommitMessageProfile,
 	normalizeCommitMessageProfiles,
+	type CommitMessageAttributionSettings,
 	type CommitMessageGitContextSettings,
 	type CommitMessageProfilesSettings,
 	type NormalizedCommitMessageProfile,
@@ -48,5 +49,6 @@ function readSingleProfileFallback(contextProxy: CommitMessageProfileContextProx
 		prompt: customSupportPrompts.COMMIT_MESSAGE,
 		apiConfigId: contextProxy.getValue("commitMessageApiConfigId") as string | undefined,
 		gitContext: contextProxy.getValue("commitMessageGitContext") as CommitMessageGitContextSettings | undefined,
+		attribution: contextProxy.getValue("commitMessageAttribution") as CommitMessageAttributionSettings | undefined,
 	}
 }

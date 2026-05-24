@@ -19,8 +19,11 @@ vi.mock("@src/components/ui", () => ({
 			{children}
 		</button>
 	),
-	Select: ({ children, value }: any) => (
+	Select: ({ children, value, onValueChange }: any) => (
 		<div data-testid="select" data-value={value}>
+			<button data-testid="select-change-release" onClick={() => onValueChange?.("release")}>
+				change release
+			</button>
 			{children}
 		</div>
 	),
@@ -36,9 +39,9 @@ vi.mock("@src/components/ui", () => ({
 }))
 
 vi.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeCheckbox: ({ children, checked, onChange }: any) => (
+	VSCodeCheckbox: ({ children, checked, onChange, "data-testid": dataTestId }: any) => (
 		<label>
-			<input type="checkbox" checked={checked} onChange={(event) => onChange(event)} />
+			<input type="checkbox" checked={checked} onChange={(event) => onChange(event)} data-testid={dataTestId} />
 			{children}
 		</label>
 	),
@@ -58,11 +61,12 @@ describe("CommitMessagePromptSettings", () => {
 		vi.clearAllMocks()
 	})
 
-	it("updates profile settings through cached-state setters without posting directly", () => {
+	it("updates single-profile prompt fallback without creating stored profiles", () => {
 		const setCommitMessageProfiles = vi.fn()
 		const setCustomSupportPrompts = vi.fn()
 		const setCommitMessageApiConfigId = vi.fn()
 		const setCommitMessageGitContext = vi.fn()
+		const setCommitMessageAttribution = vi.fn()
 
 		render(
 			<CommitMessagePromptSettings
@@ -73,6 +77,8 @@ describe("CommitMessagePromptSettings", () => {
 				setCommitMessageApiConfigId={setCommitMessageApiConfigId}
 				commitMessageGitContext={{ diffContextLines: 4 }}
 				setCommitMessageGitContext={setCommitMessageGitContext}
+				commitMessageAttribution={{ enabled: false }}
+				setCommitMessageAttribution={setCommitMessageAttribution}
 				commitMessageProfiles={undefined}
 				setCommitMessageProfiles={setCommitMessageProfiles}
 			/>,
@@ -82,20 +88,177 @@ describe("CommitMessagePromptSettings", () => {
 			target: { value: "Profile prompt ${gitContext}" },
 		})
 
-		expect(setCommitMessageProfiles).toHaveBeenCalledWith({
-			activeProfileId: "default",
-			profiles: [
-				expect.objectContaining({
-					id: "default",
-					name: "Default",
-					prompt: "Profile prompt ${gitContext}",
-					apiConfigId: "legacy-api",
-				}),
-			],
-		})
-		expect(setCommitMessageApiConfigId).toHaveBeenCalledWith("legacy-api")
-		expect(setCommitMessageGitContext).toHaveBeenCalledWith(expect.objectContaining({ diffContextLines: 4 }))
+		expect(setCommitMessageProfiles).not.toHaveBeenCalled()
+		expect(setCommitMessageApiConfigId).not.toHaveBeenCalled()
+		expect(setCommitMessageGitContext).not.toHaveBeenCalled()
 		expect(setCustomSupportPrompts).toHaveBeenCalledWith({ COMMIT_MESSAGE: "Profile prompt ${gitContext}" })
 		expect(mockPostMessage).not.toHaveBeenCalled()
+	})
+
+	it("updates top-level attribution when stored profiles do not exist", () => {
+		const setCommitMessageProfiles = vi.fn()
+		const setCommitMessageAttribution = vi.fn()
+
+		render(
+			<CommitMessagePromptSettings
+				listApiConfigMeta={[]}
+				customSupportPrompts={{}}
+				setCustomSupportPrompts={vi.fn()}
+				commitMessageApiConfigId=""
+				setCommitMessageApiConfigId={vi.fn()}
+				commitMessageGitContext={{ diffContextLines: 4 }}
+				setCommitMessageGitContext={vi.fn()}
+				commitMessageAttribution={{ enabled: false, template: "Assisted-by: ${providerModel}" }}
+				setCommitMessageAttribution={setCommitMessageAttribution}
+				commitMessageProfiles={undefined}
+				setCommitMessageProfiles={setCommitMessageProfiles}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("commit-message-attribution-enabled"))
+
+		expect(setCommitMessageAttribution).toHaveBeenCalledWith({
+			enabled: true,
+			template: "Assisted-by: ${providerModel}",
+		})
+		expect(setCommitMessageProfiles).not.toHaveBeenCalled()
+	})
+
+	it("updates only the active stored profile attribution", () => {
+		const setCommitMessageProfiles = vi.fn()
+		const setCommitMessageAttribution = vi.fn()
+
+		render(
+			<CommitMessagePromptSettings
+				listApiConfigMeta={[]}
+				customSupportPrompts={{}}
+				setCustomSupportPrompts={vi.fn()}
+				commitMessageApiConfigId=""
+				setCommitMessageApiConfigId={vi.fn()}
+				commitMessageGitContext={{ diffContextLines: 4 }}
+				setCommitMessageGitContext={vi.fn()}
+				commitMessageAttribution={{ enabled: true, template: "Top-level ${providerModel}" }}
+				setCommitMessageAttribution={setCommitMessageAttribution}
+				commitMessageProfiles={{
+					activeProfileId: "release",
+					profiles: [
+						{ id: "default", name: "Default", attribution: { enabled: true, template: "Default" } },
+						{ id: "release", name: "Release", attribution: { enabled: false, template: "Release" } },
+					],
+				}}
+				setCommitMessageProfiles={setCommitMessageProfiles}
+			/>,
+		)
+
+		fireEvent.click(screen.getByTestId("commit-message-attribution-enabled"))
+
+		expect(setCommitMessageProfiles).toHaveBeenCalledWith({
+			activeProfileId: "release",
+			profiles: [
+				{ id: "default", name: "Default", attribution: { enabled: true, template: "Default" } },
+				{ id: "release", name: "Release", attribution: { enabled: true, template: "Release" } },
+			],
+		})
+		expect(setCommitMessageAttribution).not.toHaveBeenCalled()
+	})
+
+	it("profile switch only updates active profile id and preserves profile-local options", () => {
+		const setCommitMessageProfiles = vi.fn()
+		const setCommitMessageAttribution = vi.fn()
+		const setCommitMessageApiConfigId = vi.fn()
+		const setCommitMessageGitContext = vi.fn()
+		const setCustomSupportPrompts = vi.fn()
+
+		render(
+			<CommitMessagePromptSettings
+				listApiConfigMeta={[]}
+				customSupportPrompts={{}}
+				setCustomSupportPrompts={setCustomSupportPrompts}
+				commitMessageApiConfigId=""
+				setCommitMessageApiConfigId={setCommitMessageApiConfigId}
+				commitMessageGitContext={{ diffContextLines: 4 }}
+				setCommitMessageGitContext={setCommitMessageGitContext}
+				commitMessageAttribution={{ enabled: true, template: "Top-level ${providerModel}" }}
+				setCommitMessageAttribution={setCommitMessageAttribution}
+				commitMessageProfiles={{
+					activeProfileId: "default",
+					profiles: [
+						{
+							id: "default",
+							name: "Default",
+							gitContext: { includeRecentCommitBodies: true, includeRecentCommitStats: true },
+							attribution: { enabled: true, template: "Default" },
+						},
+						{
+							id: "release",
+							name: "Release",
+							gitContext: { includeRecentCommitBodies: false, includeRecentCommitStats: false },
+							attribution: { enabled: false, template: "Release" },
+						},
+					],
+				}}
+				setCommitMessageProfiles={setCommitMessageProfiles}
+			/>,
+		)
+
+		fireEvent.click(screen.getAllByTestId("select-change-release")[0])
+
+		expect(setCommitMessageProfiles).toHaveBeenCalledWith({
+			activeProfileId: "release",
+			profiles: [
+				{
+					id: "default",
+					name: "Default",
+					gitContext: { includeRecentCommitBodies: true, includeRecentCommitStats: true },
+					attribution: { enabled: true, template: "Default" },
+				},
+				{
+					id: "release",
+					name: "Release",
+					gitContext: { includeRecentCommitBodies: false, includeRecentCommitStats: false },
+					attribution: { enabled: false, template: "Release" },
+				},
+			],
+		})
+		expect(setCommitMessageAttribution).not.toHaveBeenCalled()
+		expect(setCommitMessageApiConfigId).not.toHaveBeenCalled()
+		expect(setCommitMessageGitContext).not.toHaveBeenCalled()
+		expect(setCustomSupportPrompts).not.toHaveBeenCalled()
+	})
+
+	it("updates only the active stored profile git context option", () => {
+		const setCommitMessageProfiles = vi.fn()
+
+		render(
+			<CommitMessagePromptSettings
+				listApiConfigMeta={[]}
+				customSupportPrompts={{}}
+				setCustomSupportPrompts={vi.fn()}
+				commitMessageApiConfigId=""
+				setCommitMessageApiConfigId={vi.fn()}
+				commitMessageGitContext={{ diffContextLines: 4 }}
+				setCommitMessageGitContext={vi.fn()}
+				commitMessageAttribution={{ enabled: true, template: "Top-level ${providerModel}" }}
+				setCommitMessageAttribution={vi.fn()}
+				commitMessageProfiles={{
+					activeProfileId: "release",
+					profiles: [
+						{ id: "default", name: "Default", gitContext: { includeRecentCommitBodies: true } },
+						{ id: "release", name: "Release", gitContext: { includeRecentCommitBodies: false } },
+					],
+				}}
+				setCommitMessageProfiles={setCommitMessageProfiles}
+			/>,
+		)
+
+		fireEvent.click(screen.getAllByRole("checkbox")[3])
+
+		expect(setCommitMessageProfiles).toHaveBeenCalledWith({
+			activeProfileId: "release",
+			profiles: [
+				{ id: "default", name: "Default", gitContext: { includeRecentCommitBodies: true } },
+				{ id: "release", name: "Release", gitContext: { includeRecentCommitBodies: true } },
+			],
+		})
 	})
 })

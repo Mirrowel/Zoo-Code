@@ -8,6 +8,7 @@ import { TelemetryEventName, type ProviderSettings } from "@roo-code/types"
 
 import { GenerateMessageParams, PromptOptions, ProgressUpdate } from "./types/core"
 import { getActiveCommitMessageProfileSettings } from "./profileSettings"
+import { appendCommitMessageAttribution, createCommitMessageAttribution } from "./attribution"
 
 export interface CommitMessageContextProxy {
 	isInitialized: boolean
@@ -189,12 +190,15 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 			increment: 10,
 		})
 
-		return this.extractCommitMessage(response)
+		const message = this.extractCommitMessage(response)
+		const attribution = createCommitMessageAttribution(activeProfile.attribution, configToUse)
+
+		return appendCommitMessageAttribution(message, attribution)
 	}
 
 	private extractCommitMessage(response: string): string {
 		const cleaned = response.trim()
-		const withoutCodeBlocks = cleaned.replace(/```[a-z]*\n|```/g, "")
+		const withoutCodeBlocks = cleaned.replace(/^```[a-zA-Z0-9_-]*\r?\n/, "").replace(/\r?\n```$/, "")
 		const withoutQuotes = withoutCodeBlocks.replace(/^["'`]|["'`]$/g, "")
 		return withoutQuotes.trim()
 	}

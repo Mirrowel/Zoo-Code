@@ -289,6 +289,7 @@ export type ExtensionState = Pick<
 	| "enhancementApiConfigId"
 	| "commitMessageApiConfigId"
 	| "commitMessageGitContext"
+	| "commitMessageAttribution"
 	| "commitMessageProfiles"
 	| "customCondensingPrompt"
 	| "codebaseIndexConfig"

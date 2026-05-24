@@ -1,4 +1,4 @@
-import { defaultCommitMessageGitContextSettings } from "@roo-code/types"
+import { defaultCommitMessageAttributionSettings, defaultCommitMessageGitContextSettings } from "@roo-code/types"
 
 import { getActiveCommitMessageProfileSettings, getCommitMessageProfileSettings } from "../profileSettings"
 
@@ -12,6 +12,7 @@ describe("commit message profile settings", () => {
 			customSupportPrompts: { COMMIT_MESSAGE: "Custom commit prompt ${gitContext}" },
 			commitMessageApiConfigId: "commit-profile",
 			commitMessageGitContext: { diffContextLines: 8, includeRecentCommits: false },
+			commitMessageAttribution: { enabled: true, template: "Assisted-by: ${providerModel}" },
 		})
 
 		const settings = getCommitMessageProfileSettings(contextProxy)
@@ -28,6 +29,10 @@ describe("commit message profile settings", () => {
 			...defaultCommitMessageGitContextSettings,
 			diffContextLines: 8,
 			includeRecentCommits: false,
+		})
+		expect(settings.profiles[0].attribution).toEqual({
+			enabled: true,
+			template: "Assisted-by: ${providerModel}",
 		})
 	})
 
@@ -68,6 +73,39 @@ describe("commit message profile settings", () => {
 			...defaultCommitMessageGitContextSettings,
 			includeRecentCommitDiffs: true,
 			recentCommitDiffCount: 5,
+		})
+	})
+
+	it("does not apply top-level attribution fallback to stored profiles", () => {
+		const contextProxy = createContextProxy({
+			commitMessageAttribution: { enabled: true, template: "Assisted-by: ${providerModel}" },
+			commitMessageProfiles: {
+				activeProfileId: "default",
+				profiles: [{ id: "default", name: "Default" }],
+			},
+		})
+
+		const profile = getActiveCommitMessageProfileSettings(contextProxy)
+
+		expect(profile.attribution).toEqual(defaultCommitMessageAttributionSettings)
+	})
+
+	it("normalizes stored profile attribution independently", () => {
+		const contextProxy = createContextProxy({
+			commitMessageProfiles: {
+				activeProfileId: "release",
+				profiles: [
+					{ id: "default", name: "Default" },
+					{ id: "release", name: "Release", attribution: { enabled: true } },
+				],
+			},
+		})
+
+		const profile = getActiveCommitMessageProfileSettings(contextProxy)
+
+		expect(profile.attribution).toEqual({
+			...defaultCommitMessageAttributionSettings,
+			enabled: true,
 		})
 	})
 })
