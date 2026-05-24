@@ -16,9 +16,11 @@ import {
 	type SkillMetadata,
 	type Command,
 	type McpServer,
+	type CommitMessageAttributionSettings,
 	type CommitMessageGitContextSettings,
 	type CommitMessageProfilesSettings,
 	defaultCommitMessageGitContextSettings,
+	defaultCommitMessageAttributionSettings,
 	RouterModels,
 	ORGANIZATION_ALLOW_ALL,
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
@@ -111,6 +113,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setCommitMessageApiConfigId: (value: string) => void
 	commitMessageGitContext?: CommitMessageGitContextSettings
 	setCommitMessageGitContext: (value: CommitMessageGitContextSettings) => void
+	commitMessageAttribution?: CommitMessageAttributionSettings
+	setCommitMessageAttribution: (value: CommitMessageAttributionSettings) => void
 	commitMessageProfiles?: CommitMessageProfilesSettings
 	setCommitMessageProfiles: (value: CommitMessageProfilesSettings) => void
 	setExperimentEnabled: (id: ExperimentId, enabled: boolean) => void
@@ -227,6 +231,7 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		enhancementApiConfigId: "",
 		commitMessageApiConfigId: "",
 		commitMessageGitContext: defaultCommitMessageGitContextSettings,
+		commitMessageAttribution: defaultCommitMessageAttributionSettings,
 		commitMessageProfiles: undefined,
 		hasOpenedModeSelector: false, // Default to false (not opened yet)
 		autoApprovalEnabled: false,
@@ -558,6 +563,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 			setState((prevState) => ({ ...prevState, commitMessageApiConfigId: value })),
 		setCommitMessageGitContext: (value) =>
 			setState((prevState) => ({ ...prevState, commitMessageGitContext: value })),
+		setCommitMessageAttribution: (value) =>
+			setState((prevState) => ({ ...prevState, commitMessageAttribution: value })),
 		setCommitMessageProfiles: (value) => setState((prevState) => ({ ...prevState, commitMessageProfiles: value })),
 		setAutoApprovalEnabled: (value) => setState((prevState) => ({ ...prevState, autoApprovalEnabled: value })),
 		setCustomModes: (value) => setState((prevState) => ({ ...prevState, customModes: value })),

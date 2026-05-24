@@ -49,6 +49,20 @@ export const defaultCommitMessageGitContextSettings: Required<CommitMessageGitCo
 	recentCommitDiffCount: 1,
 }
 
+export const DEFAULT_COMMIT_MESSAGE_ATTRIBUTION_TEMPLATE = "Assisted-by: ${agentName}:${providerModel} [${toolName}]"
+
+export const commitMessageAttributionSchema = z.object({
+	enabled: z.boolean().optional(),
+	template: z.string().optional(),
+})
+
+export type CommitMessageAttributionSettings = z.infer<typeof commitMessageAttributionSchema>
+
+export const defaultCommitMessageAttributionSettings: Required<CommitMessageAttributionSettings> = {
+	enabled: false,
+	template: DEFAULT_COMMIT_MESSAGE_ATTRIBUTION_TEMPLATE,
+}
+
 export const MAX_COMMIT_MESSAGE_PROFILES = 5
 export const DEFAULT_COMMIT_MESSAGE_PROFILE_ID = "default"
 
@@ -58,6 +72,7 @@ export const commitMessageProfileSchema = z.object({
 	prompt: z.string().optional(),
 	apiConfigId: z.string().optional(),
 	gitContext: commitMessageGitContextSchema.optional(),
+	attribution: commitMessageAttributionSchema.optional(),
 })
 
 export const commitMessageProfilesSchema = z.object({
@@ -68,10 +83,14 @@ export const commitMessageProfilesSchema = z.object({
 export type CommitMessageProfileSettings = z.infer<typeof commitMessageProfileSchema>
 export type CommitMessageProfilesSettings = z.infer<typeof commitMessageProfilesSchema>
 
-export type NormalizedCommitMessageProfile = Omit<CommitMessageProfileSettings, "id" | "name" | "gitContext"> & {
+export type NormalizedCommitMessageProfile = Omit<
+	CommitMessageProfileSettings,
+	"id" | "name" | "gitContext" | "attribution"
+> & {
 	id: string
 	name: string
 	gitContext: Required<CommitMessageGitContextSettings>
+	attribution: Required<CommitMessageAttributionSettings>
 }
 
 export interface NormalizedCommitMessageProfiles {
@@ -83,6 +102,7 @@ export interface CommitMessageProfileFallbackSettings {
 	prompt?: string
 	apiConfigId?: string
 	gitContext?: CommitMessageGitContextSettings
+	attribution?: CommitMessageAttributionSettings
 }
 
 export function normalizeCommitMessageGitContextSettings(
@@ -112,6 +132,16 @@ export function normalizeCommitMessageGitContextSettings(
 	}
 }
 
+export function normalizeCommitMessageAttributionSettings(
+	settings?: CommitMessageAttributionSettings,
+): Required<CommitMessageAttributionSettings> {
+	return {
+		...defaultCommitMessageAttributionSettings,
+		...settings,
+		template: normalizeOptionalString(settings?.template) ?? defaultCommitMessageAttributionSettings.template,
+	}
+}
+
 export function normalizeCommitMessageProfiles(
 	settings?: CommitMessageProfilesSettings,
 	fallback: CommitMessageProfileFallbackSettings = {},
@@ -125,6 +155,7 @@ export function normalizeCommitMessageProfiles(
 					prompt: fallback.prompt,
 					apiConfigId: fallback.apiConfigId,
 					gitContext: fallback.gitContext,
+					attribution: fallback.attribution,
 				},
 			]
 
@@ -134,6 +165,7 @@ export function normalizeCommitMessageProfiles(
 		prompt: profile.prompt,
 		apiConfigId: normalizeOptionalString(profile.apiConfigId),
 		gitContext: normalizeCommitMessageGitContextSettings(profile.gitContext),
+		attribution: normalizeCommitMessageAttributionSettings(profile.attribution),
 	}))
 	const firstProfile = profiles[0]!
 
@@ -413,6 +445,7 @@ export const globalSettingsSchema = z.object({
 
 	commitMessageApiConfigId: z.string().optional(),
 	commitMessageGitContext: commitMessageGitContextSchema.optional(),
+	commitMessageAttribution: commitMessageAttributionSchema.optional(),
 	commitMessageProfiles: commitMessageProfilesSchema.optional(),
 })
 

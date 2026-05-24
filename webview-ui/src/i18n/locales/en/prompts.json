@@ -129,6 +129,14 @@
 				"includeRecentCommitDiffsDescription": "Includes patches from recent commits. This can improve style matching but adds a lot of context.",
 				"recentCommitDiffCount": "Recent commit diff count",
 				"recentCommitDiffCountDescription": "How many latest commits should include full patches. Capped at 5."
+			},
+			"attribution": {
+				"title": "AI attribution footer",
+				"description": "Optionally append an attribution footer after Zoo generates a commit message. This is added locally after generation and is not requested from the model.",
+				"enabled": "Add AI attribution footer",
+				"enabledDescription": "Use this when your project requires disclosure for AI-assisted contributions.",
+				"template": "Attribution template",
+				"placeholders": "Placeholders: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = API provider used; ${model} = model used; ${providerModel} = provider/model."
 			}
 		},
 		"condense": {

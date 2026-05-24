@@ -4,12 +4,13 @@ import {
 	MAX_COMMIT_MESSAGE_PROFILES,
 	createCommitMessageProfileId,
 	createCommitMessageProfileName,
+	defaultCommitMessageAttributionSettings,
 	defaultCommitMessageGitContextSettings,
 	normalizeCommitMessageProfiles,
+	type CommitMessageAttributionSettings,
 	type CommitMessageGitContextSettings,
 	type CommitMessageProfileSettings,
 	type CommitMessageProfilesSettings,
-	type NormalizedCommitMessageProfile,
 } from "@roo-code/types"
 import { supportPrompt } from "@roo/support-prompt"
 import { useAppTranslation } from "@src/i18n/TranslationContext"
@@ -31,6 +32,8 @@ interface CommitMessagePromptSettingsProps {
 	setCommitMessageApiConfigId: (value: string) => void
 	commitMessageGitContext?: CommitMessageGitContextSettings
 	setCommitMessageGitContext: (value: CommitMessageGitContextSettings) => void
+	commitMessageAttribution?: CommitMessageAttributionSettings
+	setCommitMessageAttribution: (value: CommitMessageAttributionSettings) => void
 	commitMessageProfiles?: CommitMessageProfilesSettings
 	setCommitMessageProfiles: (value: CommitMessageProfilesSettings) => void
 }
@@ -43,14 +46,18 @@ const CommitMessagePromptSettings = ({
 	setCommitMessageApiConfigId,
 	commitMessageGitContext,
 	setCommitMessageGitContext,
+	commitMessageAttribution,
+	setCommitMessageAttribution,
 	commitMessageProfiles,
 	setCommitMessageProfiles,
 }: CommitMessagePromptSettingsProps) => {
 	const { t } = useAppTranslation()
+	const hasStoredProfiles = Boolean(commitMessageProfiles?.profiles?.length)
 	const normalizedProfiles = normalizeCommitMessageProfiles(commitMessageProfiles, {
 		prompt: customSupportPrompts.COMMIT_MESSAGE,
 		apiConfigId: commitMessageApiConfigId,
 		gitContext: commitMessageGitContext,
+		attribution: commitMessageAttribution,
 	})
 	const activeProfile =
 		normalizedProfiles.profiles.find((profile) => profile.id === normalizedProfiles.activeProfileId) ??
@@ -58,42 +65,112 @@ const CommitMessagePromptSettings = ({
 	const profilePrompt = activeProfile.prompt ?? supportPrompt.get({}, "COMMIT_MESSAGE")
 	const canAddProfile = normalizedProfiles.profiles.length < MAX_COMMIT_MESSAGE_PROFILES
 	const canDeleteProfile = normalizedProfiles.profiles.length > 1
+	const attributionSettings = activeProfile.attribution
+	const suppressCheckboxChangesRef = React.useRef(false)
 
-	const persistProfiles = (profiles: CommitMessageProfileSettings[], activeProfileId: string) => {
+	const getRawProfiles = (): CommitMessageProfileSettings[] => {
+		if (hasStoredProfiles) {
+			return (commitMessageProfiles?.profiles ?? []).slice(0, MAX_COMMIT_MESSAGE_PROFILES)
+		}
+
+		return [
+			{
+				id: activeProfile.id,
+				name: activeProfile.name,
+				prompt: activeProfile.prompt,
+				apiConfigId: activeProfile.apiConfigId,
+				gitContext: commitMessageGitContext,
+				attribution: commitMessageAttribution,
+			},
+		]
+	}
+
+	const isActiveRawProfile = (_profile: CommitMessageProfileSettings, index: number) =>
+		normalizedProfiles.profiles[index]?.id === activeProfile.id
+	const getActiveRawProfile = () => getRawProfiles().find(isActiveRawProfile)
+
+	const suppressProfileTransitionCheckboxChanges = () => {
+		suppressCheckboxChangesRef.current = true
+		window.setTimeout(() => {
+			suppressCheckboxChangesRef.current = false
+		}, 0)
+	}
+
+	const persistProfiles = (
+		profiles: CommitMessageProfileSettings[],
+		activeProfileId: string,
+		suppressCheckboxChanges = false,
+	) => {
+		if (suppressCheckboxChanges) {
+			suppressProfileTransitionCheckboxChanges()
+		}
+
 		setCommitMessageProfiles({
 			activeProfileId,
 			profiles: profiles.slice(0, MAX_COMMIT_MESSAGE_PROFILES),
 		})
 	}
 
-	const syncSingleProfileFallback = (profile: NormalizedCommitMessageProfile | CommitMessageProfileSettings) => {
-		setCommitMessageApiConfigId(profile.apiConfigId ?? "")
-		setCommitMessageGitContext(profile.gitContext ?? defaultCommitMessageGitContextSettings)
-
-		const nextPrompts = { ...customSupportPrompts }
-		if (profile.prompt === undefined) {
-			delete nextPrompts.COMMIT_MESSAGE
-		} else {
-			nextPrompts.COMMIT_MESSAGE = profile.prompt
-		}
-		setCustomSupportPrompts(nextPrompts)
-	}
-
 	const updateActiveProfile = (updates: Partial<CommitMessageProfileSettings>) => {
-		const profiles = normalizedProfiles.profiles.map((profile) =>
-			profile.id === activeProfile.id ? { ...profile, ...updates } : profile,
+		if (!hasStoredProfiles) {
+			if ("prompt" in updates) {
+				const nextPrompts = { ...customSupportPrompts }
+				if (updates.prompt === undefined) {
+					delete nextPrompts.COMMIT_MESSAGE
+				} else {
+					nextPrompts.COMMIT_MESSAGE = updates.prompt
+				}
+				setCustomSupportPrompts(nextPrompts)
+			}
+
+			if ("apiConfigId" in updates) {
+				setCommitMessageApiConfigId(updates.apiConfigId ?? "")
+			}
+
+			if (updates.gitContext) {
+				setCommitMessageGitContext(updates.gitContext)
+			}
+
+			if ("name" in updates) {
+				persistProfiles([{ ...getRawProfiles()[0], ...updates }], activeProfile.id, true)
+			}
+
+			return
+		}
+
+		const profiles = getRawProfiles().map((profile, index) =>
+			isActiveRawProfile(profile, index) ? { ...profile, ...updates } : profile,
 		)
-		const nextActiveProfile = profiles.find((profile) => profile.id === activeProfile.id)!
 
 		persistProfiles(profiles, activeProfile.id)
-		syncSingleProfileFallback(nextActiveProfile)
+	}
+
+	const updateAttributionSetting = (updates: Partial<CommitMessageAttributionSettings>) => {
+		const currentAttribution = hasStoredProfiles
+			? (getActiveRawProfile()?.attribution ?? {})
+			: (commitMessageAttribution ?? {})
+		const nextAttribution = { ...currentAttribution, ...updates }
+
+		if (!hasStoredProfiles) {
+			setCommitMessageAttribution(nextAttribution)
+			return
+		}
+
+		const profiles = getRawProfiles().map((profile, index) =>
+			isActiveRawProfile(profile, index) ? { ...profile, attribution: nextAttribution } : profile,
+		)
+
+		persistProfiles(profiles, activeProfile.id)
 	}
 
 	const updateGitContextSetting = <K extends keyof CommitMessageGitContextSettings>(
 		key: K,
 		value: CommitMessageGitContextSettings[K],
 	) => {
-		updateActiveProfile({ gitContext: { ...activeProfile.gitContext, [key]: value } })
+		const currentGitContext = hasStoredProfiles
+			? (getActiveRawProfile()?.gitContext ?? {})
+			: (commitMessageGitContext ?? {})
+		updateActiveProfile({ gitContext: { ...currentGitContext, [key]: value } })
 	}
 
 	const updateNumberSetting = (
@@ -116,8 +193,7 @@ const CommitMessagePromptSettings = ({
 			return
 		}
 
-		persistProfiles(normalizedProfiles.profiles, nextActiveProfile.id)
-		syncSingleProfileFallback(nextActiveProfile)
+		persistProfiles(getRawProfiles(), nextActiveProfile.id, true)
 	}
 
 	const handleAddProfile = () => {
@@ -130,8 +206,7 @@ const CommitMessagePromptSettings = ({
 			name: createCommitMessageProfileName(normalizedProfiles.profiles),
 			gitContext: defaultCommitMessageGitContextSettings,
 		}
-		persistProfiles([...normalizedProfiles.profiles, newProfile], newProfile.id!)
-		syncSingleProfileFallback(newProfile)
+		persistProfiles([...getRawProfiles(), newProfile], newProfile.id!, true)
 	}
 
 	const handleDeleteProfile = () => {
@@ -139,10 +214,9 @@ const CommitMessagePromptSettings = ({
 			return
 		}
 
-		const profiles = normalizedProfiles.profiles.filter((profile) => profile.id !== activeProfile.id)
-		const nextActiveProfile = profiles[0]
-		persistProfiles(profiles, nextActiveProfile.id)
-		syncSingleProfileFallback(nextActiveProfile)
+		const profiles = getRawProfiles().filter((profile, index) => !isActiveRawProfile(profile, index))
+		const nextActiveProfile = normalizeCommitMessageProfiles({ profiles }).profiles[0]
+		persistProfiles(profiles, nextActiveProfile.id, true)
 	}
 
 	const getTextAreaValue = (event: Event | React.FormEvent<HTMLElement>) => {
@@ -299,6 +373,7 @@ const CommitMessagePromptSettings = ({
 					label={t("prompts:supportPrompts.commitMessage.gitContext.includeDiffStats")}
 					description={t("prompts:supportPrompts.commitMessage.gitContext.includeDiffStatsDescription")}
 					onChange={(checked) => updateGitContextSetting("includeDiffStats", checked)}
+					shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 				/>
 
 				<CheckboxSetting
@@ -306,6 +381,7 @@ const CommitMessagePromptSettings = ({
 					label={t("prompts:supportPrompts.commitMessage.gitContext.includeBranch")}
 					description={t("prompts:supportPrompts.commitMessage.gitContext.includeBranchDescription")}
 					onChange={(checked) => updateGitContextSetting("includeCurrentBranch", checked)}
+					shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 				/>
 
 				<div className="pt-2 border-t border-vscode-panel-border">
@@ -314,6 +390,7 @@ const CommitMessagePromptSettings = ({
 						label={t("prompts:supportPrompts.commitMessage.gitContext.includeRecentCommits")}
 						description={t("prompts:supportPrompts.commitMessage.gitContext.recentCommitsDescription")}
 						onChange={(checked) => updateGitContextSetting("includeRecentCommits", checked)}
+						shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 					/>
 
 					{activeProfile.gitContext.includeRecentCommits && (
@@ -346,6 +423,7 @@ const CommitMessagePromptSettings = ({
 									"prompts:supportPrompts.commitMessage.gitContext.includeRecentCommitBodiesDescription",
 								)}
 								onChange={(checked) => updateGitContextSetting("includeRecentCommitBodies", checked)}
+								shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 							/>
 
 							<CheckboxSetting
@@ -355,6 +433,7 @@ const CommitMessagePromptSettings = ({
 									"prompts:supportPrompts.commitMessage.gitContext.includeRecentCommitStatsDescription",
 								)}
 								onChange={(checked) => updateGitContextSetting("includeRecentCommitStats", checked)}
+								shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 							/>
 
 							<CheckboxSetting
@@ -364,6 +443,7 @@ const CommitMessagePromptSettings = ({
 									"prompts:supportPrompts.commitMessage.gitContext.includeRecentCommitDiffsDescription",
 								)}
 								onChange={(checked) => updateGitContextSetting("includeRecentCommitDiffs", checked)}
+								shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
 							/>
 
 							{activeProfile.gitContext.includeRecentCommitDiffs && (
@@ -394,6 +474,46 @@ const CommitMessagePromptSettings = ({
 					)}
 				</div>
 			</div>
+
+			{/* Optional attribution footer appended deterministically after generation. */}
+			<div className="mt-2 flex flex-col gap-3 pt-2 border-t border-vscode-panel-border">
+				<div>
+					<div className="font-medium mb-1">
+						{t("prompts:supportPrompts.commitMessage.attribution.title")}
+					</div>
+					<div className="text-sm text-vscode-descriptionForeground">
+						{t("prompts:supportPrompts.commitMessage.attribution.description")}
+					</div>
+				</div>
+
+				<CheckboxSetting
+					checked={attributionSettings.enabled}
+					label={t("prompts:supportPrompts.commitMessage.attribution.enabled")}
+					description={t("prompts:supportPrompts.commitMessage.attribution.enabledDescription")}
+					onChange={(checked) => updateAttributionSetting({ enabled: checked })}
+					shouldIgnoreChange={() => suppressCheckboxChangesRef.current}
+					data-testid="commit-message-attribution-enabled"
+				/>
+
+				{attributionSettings.enabled && (
+					<div>
+						<label className="block font-medium mb-1">
+							{t("prompts:supportPrompts.commitMessage.attribution.template")}
+						</label>
+						<VSCodeTextArea
+							resize="vertical"
+							value={attributionSettings.template || defaultCommitMessageAttributionSettings.template}
+							onInput={(event) => updateAttributionSetting({ template: getTextAreaValue(event) })}
+							rows={3}
+							className="w-full"
+							data-testid="commit-message-attribution-template"
+						/>
+						<div className="text-sm text-vscode-descriptionForeground mt-1">
+							{t("prompts:supportPrompts.commitMessage.attribution.placeholders")}
+						</div>
+					</div>
+				)}
+			</div>
 		</div>
 	)
 }
@@ -403,11 +523,29 @@ interface CheckboxSettingProps {
 	label: string
 	description: string
 	onChange: (checked: boolean) => void
+	shouldIgnoreChange?: () => boolean
+	"data-testid"?: string
 }
 
-const CheckboxSetting = ({ checked, label, description, onChange }: CheckboxSettingProps) => (
+const CheckboxSetting = ({
+	checked,
+	label,
+	description,
+	onChange,
+	shouldIgnoreChange,
+	"data-testid": dataTestId,
+}: CheckboxSettingProps) => (
 	<div>
-		<VSCodeCheckbox checked={checked} onChange={(event) => onChange((event.target as HTMLInputElement).checked)}>
+		<VSCodeCheckbox
+			checked={checked}
+			data-testid={dataTestId}
+			onChange={(event) => {
+				if (shouldIgnoreChange?.()) {
+					return
+				}
+
+				onChange((event.target as HTMLInputElement).checked)
+			}}>
 			<span className="font-medium">{label}</span>
 		</VSCodeCheckbox>
 		<div className="text-sm text-vscode-descriptionForeground mt-1">{description}</div>
