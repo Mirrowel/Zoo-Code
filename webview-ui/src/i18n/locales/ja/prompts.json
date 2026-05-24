@@ -164,7 +164,7 @@
 				"title": "Gitコンテキスト",
 				"description": "必要なdiffとともに送信される追加のGitコンテキストを制御します。変更サマリー、未追跡ファイルのdiff、バイナリサマリーは正確性のために常に含まれます。",
 				"contextLines": "Diffコンテキスト行数",
-				"contextLinesDescription": "各変更周辺の変更されていない行。コンパクトなdiffには0、通常のGit diffには3、より多くの周囲のコードには更大的な値を使用してください。",
+				"contextLinesDescription": "各変更周辺の変更されていない行。コンパクトなdiffには0、通常のGit diffには3、より多くの周囲のコードにはより大きな値を使用してください。",
 				"includeDiffStats": "Diff統計を含める",
 				"includeDiffStatsDescription": "完全なdiffの前にコンパクトなファイル/挿入/削除のサマリーを追加します。",
 				"includeBranch": "現在のブランチ名を含める",
