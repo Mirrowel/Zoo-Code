@@ -19,6 +19,7 @@ describe("CommitMessageGenerator", () => {
 	const captureGenerated = vi.fn()
 	const warn = vi.fn()
 
+	/** Creates a generator with mocked provider and configuration dependencies. */
 	const createGenerator = () =>
 		new CommitMessageGenerator(providerSettingsManager as any, {
 			getContextProxy: () => contextProxy,
@@ -48,6 +49,33 @@ describe("CommitMessageGenerator", () => {
 		completePrompt.mockResolvedValue("```\nfeat(core): add commit generator\n```")
 		providerSettingsManager.initialize.mockResolvedValue(undefined)
 		providerSettingsManager.getProfile.mockResolvedValue({ name: "Commit profile", ...commitConfig })
+	})
+
+	it("fails before progress or AI calls when git context has no changes", async () => {
+		const onProgress = vi.fn()
+		const generator = createGenerator()
+
+		await expect(
+			generator.generateMessage({
+				workspacePath: "/repo",
+				selectedFiles: [],
+				gitContext: `## Git Context
+
+### Full Diff of Staged Changes
+\`\`\`diff
+\`\`\`
+
+### Change Summary
+\`\`\`
+(No changes matched selection)
+\`\`\``,
+				onProgress,
+			}),
+		).rejects.toThrow("No changes to generate a commit message for")
+
+		expect(onProgress).not.toHaveBeenCalled()
+		expect(completePrompt).not.toHaveBeenCalled()
+		expect(captureGenerated).not.toHaveBeenCalled()
 	})
 
 	it("sends the full git context to the LLM and returns cleaned commit text", async () => {
@@ -152,5 +180,24 @@ new file mode 100644
 		expect(secondPrompt).toContain("GENERATE A COMPLETELY DIFFERENT COMMIT MESSAGE")
 		expect(secondPrompt).toContain('The previous message was: "feat(git): collect git context"')
 		expect(secondPrompt).toContain(gitContext)
+	})
+
+	it("cleans formatting wrappers without enforcing conventional commit format", async () => {
+		completePrompt.mockResolvedValue(`\`\`\`
+Update Git context parsing for staged-only entries
+
+Keep unstaged commit context focused on worktree changes.
+\`\`\``)
+		const generator = createGenerator()
+
+		const message = await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["src/file.ts"],
+			gitContext: "Modified (staged): src/file.ts",
+		})
+
+		expect(message).toBe(`Update Git context parsing for staged-only entries
+
+Keep unstaged commit context focused on worktree changes.`)
 	})
 })
