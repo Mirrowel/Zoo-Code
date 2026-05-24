@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "包含来自最近提交的补丁。这可以改善风格匹配但会添加大量上下文。",
 				"recentCommitDiffCount": "最近提交 diff 数量",
 				"recentCommitDiffCountDescription": "多少个最新提交应包含完整补丁。上限为 5。"
+			},
+			"attribution": {
+				"title": "AI 署名页脚",
+				"description": "可选地在 Zoo 生成提交信息后附加署名页脚。此内容在生成后本地添加，不会向模型请求。",
+				"enabled": "添加 AI 署名页脚",
+				"enabledDescription": "当您的项目要求披露 AI 辅助贡献时使用。",
+				"template": "署名模板",
+				"placeholders": "占位符：${agentName} = Zoo Code；${toolName} = Zoo Code；${provider} = 所用 API 提供商；${model} = 所用模型；${providerModel} = 提供商/模型。"
 			}
 		}
 	},

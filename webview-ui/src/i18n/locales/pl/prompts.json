@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Uwzględnia łatki z ostatnich commitów. Może to poprawić dopasowanie stylu, ale dodaje dużo kontekstu.",
 				"recentCommitDiffCount": "Liczba diffów ostatnich commitów",
 				"recentCommitDiffCountDescription": "Ile ostatnich commitów powinno zawierać pełne łatki. Ograniczone do 5."
+			},
+			"attribution": {
+				"title": "Stopka atrybucji AI",
+				"description": "Opcjonalnie dołącz stopkę atrybucji po wygenerowaniu wiadomości commitu przez Zoo. Jest ona dodawana lokalnie po generacji i nie jest wysyłana do modelu.",
+				"enabled": "Dodaj stopkę atrybucji AI",
+				"enabledDescription": "Użyj tego, gdy Twój projekt wymaga ujawnienia wkładu wspieranego przez AI.",
+				"template": "Szablon atrybucji",
+				"placeholders": "Symbole zastępcze: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = używany dostawca API; ${model} = używany model; ${providerModel} = dostawca/model."
 			}
 		}
 	},

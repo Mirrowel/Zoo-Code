@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "Bao gồm các bản vá từ commit gần đây. Điều này có thể cải thiện việc khớp kiểu nhưng thêm rất nhiều ngữ cảnh.",
 				"recentCommitDiffCount": "Số diff commit gần đây",
 				"recentCommitDiffCountDescription": "Bao nhiêu commit mới nhất nên bao gồm bản vá đầy đủ. Giới hạn ở 5."
+			},
+			"attribution": {
+				"title": "Chân trang ghi nhận AI",
+				"description": "Tùy chọn thêm chân trang ghi nhận sau khi Zoo tạo thông báo commit. Điều này được thêm cục bộ sau khi tạo và không được yêu cầu từ mô hình.",
+				"enabled": "Thêm chân trang ghi nhận AI",
+				"enabledDescription": "Sử dụng khi dự án của bạn yêu cầu công bố các đóng góp có sự hỗ trợ của AI.",
+				"template": "Mẫu ghi nhận",
+				"placeholders": "Trình giữ chỗ: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = nhà cung cấp API đã sử dụng; ${model} = mô hình đã sử dụng; ${providerModel} = nhà cung cấp/mô hình."
 			}
 		}
 	},

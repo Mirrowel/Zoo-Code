@@ -181,6 +181,14 @@
 				"includeRecentCommitDiffsDescription": "हाल के commits से patches शामिल करता है। यह शैली मिलान में सुधार कर सकता है लेकिन बहुत सारा संदर्भ जोड़ता है।",
 				"recentCommitDiffCount": "हाल के commit diff की संख्या",
 				"recentCommitDiffCountDescription": "कितने नवीनतम commits में पूर्ण patches शामिल होने चाहिए। अधिकतम 5 तक सीमित।"
+			},
+			"attribution": {
+				"title": "AI एट्रिब्यूशन फ़ुटर",
+				"description": "Zoo द्वारा commit message जनरेट करने के बाद वैकल्पिक रूप से एक एट्रिब्यूशन फ़ुटर जोड़ें। यह जनरेशन के बाद स्थानीय रूप से जोड़ा जाता है और मॉडल से अनुरोध नहीं किया जाता है।",
+				"enabled": "AI एट्रिब्यूशन फ़ुटर जोड़ें",
+				"enabledDescription": "जब आपके प्रोजेक्ट में AI-सहायता प्राप्त योगदानों के लिए प्रकटीकरण आवश्यक हो तो इसका उपयोग करें।",
+				"template": "एट्रिब्यूशन टेम्पलेट",
+				"placeholders": "प्लेसहोल्डर: ${agentName} = Zoo Code; ${toolName} = Zoo Code; ${provider} = उपयोग किया गया API प्रोवाइडर; ${model} = उपयोग किया गया मॉडल; ${providerModel} = प्रोवाइडर/मॉडल।"
 			}
 		}
 	},
