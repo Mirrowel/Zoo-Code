@@ -164,7 +164,7 @@
 				"title": "Kontekst Git",
 				"description": "Kontroluj dodatkowy kontekst Git wysyłany z wymaganym diffem. Podsumowanie zmian, diffy nieśledzonych plików i podsumowania binarne są zawsze uwzględniane dla poprawności.",
 				"contextLines": "Linie kontekstu diffa",
-				"contextLinesDescription": "Niezmiene linie wokół każdej zmiany. Użyj 0 dla kompaktowych diffów, 3 dla normalnych diffów Git lub większej wartości dla większej ilości otaczającego kodu.",
+				"contextLinesDescription": "Niezmienione linie wokół każdej zmiany. Użyj 0 dla kompaktowych diffów, 3 dla normalnych diffów Git lub większej wartości dla większej ilości otaczającego kodu.",
 				"includeDiffStats": "Uwzględnij statystyki diffów",
 				"includeDiffStatsDescription": "Dodaje kompaktowe podsumowanie plików/insertów/usunięć przed pełnym diffem.",
 				"includeBranch": "Uwzględnij nazwę bieżącej gałęzi",

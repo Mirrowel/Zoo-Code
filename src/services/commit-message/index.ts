@@ -10,10 +10,13 @@ export function registerCommitMessageProvider(
 	const commitProvider = new CommitMessageProvider(context, outputChannel)
 	context.subscriptions.push(commitProvider)
 
-	commitProvider.activate().catch((error) => {
-		outputChannel.appendLine(t("common:commitMessage.activationFailed", { error: error.message }))
-		console.error("Commit message provider activation failed:", error)
-	})
-
-	outputChannel.appendLine(t("common:commitMessage.providerRegistered"))
+	commitProvider
+		.activate()
+		.then(() => {
+			outputChannel.appendLine(t("common:commitMessage.providerRegistered"))
+		})
+		.catch((error) => {
+			outputChannel.appendLine(t("common:commitMessage.activationFailed", { error: error.message }))
+			console.error("Commit message provider activation failed:", error)
+		})
 }
