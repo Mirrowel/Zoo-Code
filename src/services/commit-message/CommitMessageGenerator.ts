@@ -10,26 +10,38 @@ import { GenerateMessageParams, PromptOptions, ProgressUpdate } from "./types/co
 import { getActiveCommitMessageProfileSettings } from "./profileSettings"
 import { appendCommitMessageAttribution, createCommitMessageAttribution } from "./attribution"
 
+/** Provides the extension settings needed to generate commit messages. */
 export interface CommitMessageContextProxy {
+	/** Whether the underlying extension configuration is ready to read. */
 	isInitialized: boolean
+	/** Returns the active provider settings used as the default generation profile. */
 	getProviderSettings(): ProviderSettings
+	/** Reads a persisted extension setting by key. */
 	getValue(key: any): unknown
 }
 
+/** Overrides used to isolate commit message generation in tests and integrations. */
 export interface CommitMessageGeneratorDependencies {
+	/** Supplies the context proxy that owns provider settings and user configuration. */
 	getContextProxy?: () => CommitMessageContextProxy
+	/** Completes the prepared commit-message prompt with the selected provider. */
 	completePrompt?: (apiConfiguration: ProviderSettings, promptText: string) => Promise<string>
+	/** Adds repository-specific custom instructions to the commit-message prompt. */
 	addCustomInstructions?: typeof defaultAddCustomInstructions
+	/** Records successful commit-message generation telemetry. */
 	captureGenerated?: () => void
+	/** Receives non-fatal generation warnings, such as profile fallback failures. */
 	logger?: Pick<Console, "warn">
 }
 
+/** Builds prompts, selects provider settings, and extracts AI generated commit messages. */
 export class CommitMessageGenerator {
 	private readonly providerSettingsManager: ProviderSettingsManager
 	private readonly dependencies: Required<CommitMessageGeneratorDependencies>
 	private previousGitContext: string | null = null
 	private previousCommitMessage: string | null = null
 
+	/** Creates a generator using the provider settings manager and optional test seams. */
 	constructor(
 		providerSettingsManager: ProviderSettingsManager,
 		dependencies: CommitMessageGeneratorDependencies = {},
@@ -46,10 +58,13 @@ export class CommitMessageGenerator {
 		}
 	}
 
+	/** Generates a conventional commit message for the supplied Git context. */
 	async generateMessage(params: GenerateMessageParams): Promise<string> {
 		const { gitContext, onProgress } = params
 
 		try {
+			this.validateGitContext(gitContext)
+
 			onProgress?.({
 				message: "Generating commit message...",
 				percentage: 75,
@@ -74,6 +89,7 @@ export class CommitMessageGenerator {
 		}
 	}
 
+	/** Creates the final model prompt, including custom and regeneration instructions. */
 	async buildPrompt(gitContext: string, options: PromptOptions, workspacePath: string): Promise<string> {
 		const { customSupportPrompts = {}, previousContext, previousMessage } = options
 
@@ -130,6 +146,7 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 		}
 	}
 
+	/** Calls the configured AI provider and returns the cleaned commit message text. */
 	private async callAIForCommitMessage(
 		gitContextString: string,
 		workspacePath: string,
@@ -196,6 +213,31 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 		return appendCommitMessageAttribution(message, attribution)
 	}
 
+	/** Throws when there is no meaningful Git change data to describe. */
+	private validateGitContext(gitContext: string): void {
+		if (!this.hasGitChanges(gitContext)) {
+			throw new Error("No changes to generate a commit message for")
+		}
+	}
+
+	/** Detects whether collected Git context includes at least one changed file. */
+	private hasGitChanges(gitContext: string): boolean {
+		const normalizedContext = gitContext.trim()
+
+		if (!normalizedContext || normalizedContext.includes("(No changes matched selection)")) {
+			return false
+		}
+
+		return (
+			/^diff --git /m.test(normalizedContext) ||
+			/^Binary file /m.test(normalizedContext) ||
+			/^(Added|Modified|Deleted|Renamed|Copied|Updated|Untracked|Unknown) \((staged|unstaged)\): .+$/m.test(
+				normalizedContext,
+			)
+		)
+	}
+
+	/** Cleans formatting wrappers from an AI response without enforcing message style. */
 	private extractCommitMessage(response: string): string {
 		const cleaned = response.trim()
 		const withoutCodeBlocks = cleaned.replace(/^```[a-zA-Z0-9_-]*\r?\n/, "").replace(/\r?\n```$/, "")
