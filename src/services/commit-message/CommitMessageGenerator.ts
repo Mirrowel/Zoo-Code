@@ -7,6 +7,8 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { TelemetryEventName, type ProviderSettings } from "@roo-code/types"
 
 import { GenerateMessageParams, PromptOptions, ProgressUpdate } from "./types/core"
+import { getActiveCommitMessageProfileSettings } from "./profileSettings"
+import { appendCommitMessageAttribution, createCommitMessageAttribution } from "./attribution"
 
 /** Provides the extension settings needed to generate commit messages. */
 export interface CommitMessageContextProxy {
@@ -155,7 +157,8 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 			throw new Error("ContextProxy not initialized. Please try again after the extension has fully loaded.")
 		}
 		const apiConfiguration = contextProxy.getProviderSettings()
-		const commitMessageApiConfigId = contextProxy.getValue("commitMessageApiConfigId") as string | undefined
+		const activeProfile = getActiveCommitMessageProfileSettings(contextProxy)
+		const commitMessageApiConfigId = activeProfile.apiConfigId
 		const listApiConfigMeta = (contextProxy.getValue("listApiConfigMeta") || []) as Array<{ id: string }>
 		const customSupportPrompts = (contextProxy.getValue("customSupportPrompts") || {}) as Record<
 			string,
@@ -185,12 +188,12 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 		const filteredPrompts = Object.fromEntries(
 			Object.entries(customSupportPrompts).filter(([_, value]) => value !== undefined),
 		) as Record<string, string>
+		const profilePrompts =
+			activeProfile.prompt !== undefined
+				? { ...filteredPrompts, COMMIT_MESSAGE: activeProfile.prompt }
+				: filteredPrompts
 
-		const prompt = await this.buildPrompt(
-			gitContextString,
-			{ customSupportPrompts: filteredPrompts },
-			workspacePath,
-		)
+		const prompt = await this.buildPrompt(gitContextString, { customSupportPrompts: profilePrompts }, workspacePath)
 
 		onProgress?.({
 			message: "Calling AI service...",
@@ -204,7 +207,10 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 			increment: 10,
 		})
 
-		return this.extractCommitMessage(response)
+		const message = this.extractCommitMessage(response)
+		const attribution = createCommitMessageAttribution(activeProfile.attribution, configToUse)
+
+		return appendCommitMessageAttribution(message, attribution)
 	}
 
 	/** Throws when there is no meaningful Git change data to describe. */

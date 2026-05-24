@@ -3,8 +3,16 @@ import type { ProviderSettings } from "@roo-code/types"
 import { CommitMessageGenerator } from "../CommitMessageGenerator"
 
 describe("CommitMessageGenerator", () => {
-	const defaultConfig: ProviderSettings = { apiProvider: "openai", openAiApiKey: "default-key" }
-	const commitConfig: ProviderSettings = { apiProvider: "anthropic", apiKey: "commit-key" }
+	const defaultConfig: ProviderSettings = {
+		apiProvider: "openai",
+		openAiApiKey: "default-key",
+		openAiModelId: "gpt-4",
+	}
+	const commitConfig: ProviderSettings = {
+		apiProvider: "anthropic",
+		apiKey: "commit-key",
+		apiModelId: "claude-opus-4-7",
+	}
 	const providerSettingsManager = {
 		initialize: vi.fn(),
 		getProfile: vi.fn(),
@@ -138,6 +146,53 @@ new file mode 100644
 		)
 	})
 
+	it("uses the active commit-message profile prompt and API config", async () => {
+		contextProxy.getValue.mockImplementation((key: string) => {
+			switch (key) {
+				case "commitMessageProfiles":
+					return {
+						activeProfileId: "release",
+						profiles: [
+							{
+								id: "default",
+								name: "Default",
+								apiConfigId: "default-profile",
+							},
+							{
+								id: "release",
+								name: "Release",
+								prompt: "Release prompt\n${gitContext}\n${customInstructions}",
+								apiConfigId: "commit-profile",
+							},
+						],
+					}
+				case "commitMessageApiConfigId":
+					return "default-profile"
+				case "listApiConfigMeta":
+					return [{ id: "commit-profile", name: "Commit profile" }]
+				case "customSupportPrompts":
+					return { COMMIT_MESSAGE: "Legacy prompt ${gitContext}" }
+				default:
+					return undefined
+			}
+		})
+		completePrompt.mockResolvedValue("chore(release): prepare notes")
+		const generator = createGenerator()
+
+		await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["CHANGELOG.md"],
+			gitContext: "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+		})
+
+		expect(providerSettingsManager.getProfile).toHaveBeenCalledWith({ id: "commit-profile" })
+		expect(completePrompt).toHaveBeenCalledWith(
+			expect.objectContaining(commitConfig),
+			expect.stringContaining("Release prompt"),
+		)
+		expect(completePrompt.mock.calls[0][1]).not.toContain("Legacy prompt")
+	})
+
 	it("falls back to current API config when the selected profile cannot be loaded", async () => {
 		contextProxy.getValue.mockImplementation((key: string) => {
 			switch (key) {
@@ -214,5 +269,101 @@ Keep unstaged commit context focused on worktree changes.`)
 		).rejects.toThrow("AI returned an empty commit message")
 
 		expect(captureGenerated).not.toHaveBeenCalled()
+	})
+
+	it("appends attribution from the top-level single-profile setting", async () => {
+		contextProxy.getValue.mockImplementation((key: string) => {
+			switch (key) {
+				case "commitMessageAttribution":
+					return { enabled: true }
+				case "listApiConfigMeta":
+					return []
+				case "customSupportPrompts":
+					return {}
+				default:
+					return undefined
+			}
+		})
+		completePrompt.mockResolvedValue("feat(scm): add commit generation")
+		const generator = createGenerator()
+
+		const message = await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["src/new.ts"],
+			gitContext: "diff --git a/src/new.ts b/src/new.ts",
+		})
+
+		expect(message).toBe("feat(scm): add commit generation\n\nAssisted-by: Zoo Code:openai/gpt-4 [Zoo Code]")
+	})
+
+	it("uses the actual profile API config for attribution", async () => {
+		contextProxy.getValue.mockImplementation((key: string) => {
+			switch (key) {
+				case "commitMessageProfiles":
+					return {
+						activeProfileId: "release",
+						profiles: [
+							{
+								id: "release",
+								name: "Release",
+								apiConfigId: "commit-profile",
+								attribution: { enabled: true, template: "Generated-by: ${providerModel}" },
+							},
+						],
+					}
+				case "listApiConfigMeta":
+					return [{ id: "commit-profile", name: "Commit profile" }]
+				case "customSupportPrompts":
+					return {}
+				default:
+					return undefined
+			}
+		})
+		completePrompt.mockResolvedValue("chore(release): prepare notes")
+		const generator = createGenerator()
+
+		const message = await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["CHANGELOG.md"],
+			gitContext: "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+		})
+
+		expect(message).toBe("chore(release): prepare notes\n\nGenerated-by: anthropic/claude-opus-4-7")
+	})
+
+	it("uses fallback API config for attribution when profile loading fails", async () => {
+		contextProxy.getValue.mockImplementation((key: string) => {
+			switch (key) {
+				case "commitMessageProfiles":
+					return {
+						activeProfileId: "release",
+						profiles: [
+							{
+								id: "release",
+								name: "Release",
+								apiConfigId: "missing-profile",
+								attribution: { enabled: true },
+							},
+						],
+					}
+				case "listApiConfigMeta":
+					return [{ id: "missing-profile", name: "Missing profile" }]
+				case "customSupportPrompts":
+					return {}
+				default:
+					return undefined
+			}
+		})
+		providerSettingsManager.getProfile.mockRejectedValue(new Error("missing profile"))
+		completePrompt.mockResolvedValue("fix(scm): handle profile fallback")
+		const generator = createGenerator()
+
+		const message = await generator.generateMessage({
+			workspacePath: "/repo",
+			selectedFiles: ["src/new.ts"],
+			gitContext: "diff --git a/src/new.ts b/src/new.ts",
+		})
+
+		expect(message).toBe("fix(scm): handle profile fallback\n\nAssisted-by: Zoo Code:openai/gpt-4 [Zoo Code]")
 	})
 })

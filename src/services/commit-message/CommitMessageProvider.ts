@@ -73,6 +73,7 @@ export class CommitMessageProvider implements vscode.Disposable {
 					try {
 						reportProgress(15, t("common:commitMessage.discoveringFiles"))
 						const resolution = await this.resolveCommitChanges(gitCollector)
+
 						const gitContextSettings = getCommitMessageGitContextSettings()
 
 						if (resolution.changes.length === 0) {
