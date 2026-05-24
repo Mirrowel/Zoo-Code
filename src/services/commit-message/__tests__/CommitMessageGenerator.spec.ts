@@ -200,4 +200,19 @@ Keep unstaged commit context focused on worktree changes.
 
 Keep unstaged commit context focused on worktree changes.`)
 	})
+
+	it("fails when AI output is empty after cleanup", async () => {
+		completePrompt.mockResolvedValue("```\n   \n```")
+		const generator = createGenerator()
+
+		await expect(
+			generator.generateMessage({
+				workspacePath: "/repo",
+				selectedFiles: ["src/file.ts"],
+				gitContext: "Modified (staged): src/file.ts",
+			}),
+		).rejects.toThrow("AI returned an empty commit message")
+
+		expect(captureGenerated).not.toHaveBeenCalled()
+	})
 })
