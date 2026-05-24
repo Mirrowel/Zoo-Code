@@ -205,9 +205,13 @@ export class CommitMessageProvider implements vscode.Disposable {
 			return resourceUri.fsPath
 		}
 
-		const workspaceFolders = vscode.workspace.workspaceFolders
-		if (workspaceFolders && workspaceFolders.length > 0) {
+		const workspaceFolders = vscode.workspace.workspaceFolders ?? []
+		if (workspaceFolders.length === 1) {
 			return workspaceFolders[0].uri.fsPath
+		}
+
+		if (workspaceFolders.length > 1) {
+			throw new Error("Run this command from a specific Git source control input in a multi-root workspace")
 		}
 
 		throw new Error("Could not determine workspace path")
