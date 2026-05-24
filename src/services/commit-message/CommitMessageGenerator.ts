@@ -242,6 +242,12 @@ FINAL REMINDER: Your message MUST be COMPLETELY DIFFERENT from the previous mess
 		const cleaned = response.trim()
 		const withoutCodeBlocks = cleaned.replace(/^```[a-zA-Z0-9_-]*\r?\n/, "").replace(/\r?\n```$/, "")
 		const withoutQuotes = withoutCodeBlocks.replace(/^["'`]|["'`]$/g, "")
-		return withoutQuotes.trim()
+		const normalized = withoutQuotes.trim()
+
+		if (!normalized) {
+			throw new Error("AI returned an empty commit message")
+		}
+
+		return normalized
 	}
 }
