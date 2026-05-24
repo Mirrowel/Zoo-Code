@@ -570,6 +570,9 @@ export class GitContextCollector {
 		}
 	}
 
+	/** Keeps collector cleanup compatible with provider lifecycle hooks. */
+	public dispose(): void {}
+
 	/** Counts text lines while preserving blank lines and ignoring a final newline terminator. */
 	private countTextLines(content: string): number {
 		if (content.length === 0) {
